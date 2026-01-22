@@ -5,12 +5,12 @@ import 'package:dio/dio.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('RootClient', () {
+  group('SystemKitClient', () {
     test('fetches version from /version', () async {
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
         ..interceptors.add(_VersionInterceptor());
       final client = ApiClient(dio: dio);
-      final root = RootClient(apiClient: client);
+      final root = SystemKitClient(apiClient: client);
 
       final version = await root.getVersion();
 

@@ -2,13 +2,19 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
-import 'agent_message_handler.dart';
-import 'agentkit_client.dart';
+import '../agentkit/agent_message_handler.dart';
+import '../agentkit/agentkit_client.dart';
+import '../agentkit/agents_dto.dart';
+import '../agentkit/capability_dto.dart';
+import '../agentkit/common_dto.dart';
+import '../agentkit/messages_dto.dart';
+import '../agentkit/sessions_dto.dart';
 import 'agentos_event_handler.dart';
-import 'api_client.dart';
-import 'appkit_client.dart';
-import 'dto.dart';
-import 'root_client.dart';
+import '../../utils/api_client.dart';
+import '../appkit/appkit_client.dart';
+import '../appkit/dto.dart';
+import '../systemkit/dto.dart';
+import '../systemkit/systemkit_client.dart';
 
 /// Unified AgentOS SDK that manages Root, AgentKit, and AppKit APIs.
 class AgentOSSDK {
@@ -20,7 +26,7 @@ class AgentOSSDK {
   }) : _apiClient =
             apiClient ??
             ApiClient(dio: dio, baseUrl: baseUrl, baseOptions: baseOptions) {
-    _root = RootClient(apiClient: _apiClient);
+    _systemKit = SystemKitClient(apiClient: _apiClient);
     _agentKit = AgentKitClient(apiClient: _apiClient);
     _appKit = AppKitClient(apiClient: _apiClient);
     agentos = AgentOSModule._(this);
@@ -28,7 +34,7 @@ class AgentOSSDK {
   }
 
   final ApiClient _apiClient;
-  late final RootClient _root;
+  late final SystemKitClient _systemKit;
   late final AgentKitClient _agentKit;
   late final AppKitClient _appKit;
   String? _token;
@@ -64,7 +70,7 @@ class AgentOSModule {
   final AgentOSSDK _client;
 
   /// Fetches the AgentOS service version.
-  Future<Version> getVersion() => _client._root.getVersion();
+  Future<Version> getVersion() => _client._systemKit.getVersion();
 
   /// Registers an app bundle and stores the returned bearer token internally.
   Future<void> registerBundle({required String bundleId}) async {

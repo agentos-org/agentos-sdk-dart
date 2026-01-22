@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 
-import 'api_client.dart';
+import '../../utils/api_client.dart';
 import 'dto.dart';
 
-class RootClient {
-  RootClient({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
+class SystemKitClient {
+  SystemKitClient({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
   final ApiClient _apiClient;
 

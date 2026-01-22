@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
-import 'api_client.dart';
+import '../../utils/api_client.dart';
 import 'dto.dart';
 
 class AppKitClient {

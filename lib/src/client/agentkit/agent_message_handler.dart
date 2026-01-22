@@ -1,4 +1,5 @@
-import 'dto.dart';
+import 'common_dto.dart';
+import 'messages_dto.dart';
 
 abstract class AgentMessageHandler {
   Tool? tool;

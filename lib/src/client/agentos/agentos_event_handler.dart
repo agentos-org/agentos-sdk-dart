@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'dto.dart';
+import '../appkit/dto.dart';
 
 abstract class AgentOSEventHandler {
   Future<void> onWelcome(Welcome welcome);

@@ -3,8 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 
-import 'api_client.dart';
-import 'dto.dart';
+import '../../utils/api_client.dart';
+import 'agents_dto.dart';
+import 'capability_dto.dart';
+import 'common_dto.dart';
+import 'messages_dto.dart';
+import 'sessions_dto.dart';
 
 class AgentKitClient {
   AgentKitClient({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
