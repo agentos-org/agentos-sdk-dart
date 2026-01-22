@@ -1,0 +1,220 @@
+import 'package:json_annotation/json_annotation.dart';
+import '../shared/dto.dart';
+import 'common_dto.dart';
+
+part 'messages_dto.g.dart';
+
+@JsonSerializable()
+class AgentEvent {
+  String agentEventType; // AgentEventType.message | AgentEventType.chunk | AgentEventType.functionCall
+  String data;
+
+  AgentEvent({required this.agentEventType, required this.data});
+
+  factory AgentEvent.fromJson(Map<String, dynamic> json) => _$AgentEventFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AgentEventToJson(this);
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class AgentMessage {
+  String sessionId;
+  String taskId;
+  String role;
+  String to;
+  String type;
+  dynamic content;
+
+  Completions? completions; //When role is llm, this is current llm calling token usage
+
+  DateTime createTime;
+
+  AgentMessage({
+    required this.sessionId,
+    required this.taskId,
+    required this.role,
+    required this.to,
+    required this.type,
+    required this.content,
+    this.completions,
+    required this.createTime
+  });
+
+  factory AgentMessage.fromJson(Map<String, dynamic> json) => _$AgentMessageFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AgentMessageToJson(this);
+
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class AgentMessageChunk {
+  String sessionId;
+  String taskId;
+  String role;
+  String to;
+  String type;
+  dynamic part;
+  DateTime createTime;
+
+  AgentMessageChunk({
+    required this.sessionId,
+    required this.taskId,
+    required this.role,
+    required this.to,
+    required this.type,
+    required this.part,
+    required this.createTime
+  });
+
+  factory AgentMessageChunk.fromJson(Map<String, dynamic> json) => _$AgentMessageChunkFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AgentMessageChunkToJson(this);
+
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class Completions {
+  TokenUsage? usage;
+
+  /// When role is llm, this is current llm calling token usage
+  String id;
+
+  /// When role is llm, this is current /chat/completions return message id
+  String model;
+
+  Completions({required this.usage, required this.id, required this.model});
+
+  factory Completions.fromJson(Map<String, dynamic> json) => _$CompletionsFromJson(json);
+
+  Map<String, dynamic> toJson() => _$CompletionsToJson(this);
+
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class TokenUsage {
+  final int promptTokens;
+  final int completionTokens;
+  final int totalTokens;
+
+  TokenUsage({
+    required this.promptTokens,
+    required this.completionTokens,
+    required this.totalTokens
+  });
+
+  factory TokenUsage.fromJson(Map<String, dynamic> json) => _$TokenUsageFromJson(json);
+
+  Map<String, dynamic> toJson() => _$TokenUsageToJson(this);
+
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class UserTask {
+  String? taskId;
+  List<Content> content;
+  bool isChunk;
+
+  UserTask({this.taskId, required this.content, this.isChunk = true});
+
+  factory UserTask.fromJson(Map<String, dynamic> json) {
+    if(json["taskId"] != null && (json["taskId"] as String).length > 36) {
+      throw FormatException("taskId length should not more then 36");
+    }
+    return _$UserTaskFromJson(json);
+  }
+
+  Map<String, dynamic> toJson() => _$UserTaskToJson(this);
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class EventToolReturn {
+  String agentEventType; // EventType.start | EventType.data | EventType.error | EventType.done
+  ToolReturn toolReturn;
+
+  EventToolReturn({required this.agentEventType, required this.toolReturn});
+
+  factory EventToolReturn.fromJson(Map<String, dynamic> json) => _$EventToolReturnFromJson(json);
+
+  Map<String, dynamic> toJson() => _$EventToolReturnToJson(this);
+}
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class Dispatch {
+  String dispatchId;
+  String agentId;
+  String name;
+  List<Content> content;
+
+  Dispatch({required this.dispatchId, required this.agentId, required this.name, required this.content});
+
+  factory Dispatch.fromJson(Map<String, dynamic> json) => _$DispatchFromJson(json);
+
+  Map<String, dynamic> toJson() => _$DispatchToJson(this);
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class TaskStatus {
+  String status;
+  Map<String, dynamic>? description;
+
+  TaskStatus({required this.status, this.description});
+
+  factory TaskStatus.fromJson(Map<String, dynamic> json) => _$TaskStatusFromJson(json);
+
+  Map<String, dynamic> toJson() => _$TaskStatusToJson(this);
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class Reflection {
+  final bool isPass;
+  final MessageScore messageScore;
+  final int passScore;
+  final int count;
+  final int maxCount;
+
+  Reflection({
+    required this.isPass,
+    required this.messageScore,
+    required this.passScore,
+    required this.count,
+    required this.maxCount,
+  });
+
+  factory Reflection.fromJson(Map<String, dynamic> json) => _$ReflectionFromJson(json);
+
+  Map<String, dynamic> toJson() => _$ReflectionToJson(this);
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class MessageScore {
+  List<Content> content;
+  String messageType; // AgentMessageType.text | AgentMessageType.imageUrl | AgentMessageType.dispatch | AgentMessageType.toolCalls | AgentMessageType.toolReturn | AgentMessageType.contentList | AgentMessageType.reflection | AgentMessageType.taskStatus | AgentMessageType.functionCall | AgentMessageType.reasoningContent | AgentMessageType.planning
+  String message;
+  List<ReflectScore> reflectScoreList;
+  MessageScore({required this.content, required this.messageType, required this.message, required this.reflectScoreList});
+
+  factory MessageScore.fromJson(Map<String, dynamic> json) => _$MessageScoreFromJson(json);
+
+  Map<String, dynamic> toJson() => _$MessageScoreToJson(this);
+}
+
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class ReflectScore {
+  int score;
+  String? description;
+  ReflectScore({required this.score, this.description});
+
+  factory ReflectScore.fromJson(Map<String, dynamic> json) => _$ReflectScoreFromJson(json);
+
+  Map<String, dynamic> toJson() => _$ReflectScoreToJson(this);
+}

@@ -1,0 +1,198 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'messages_dto.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+AgentEvent _$AgentEventFromJson(Map<String, dynamic> json) => AgentEvent(
+  agentEventType: json['agentEventType'] as String,
+  data: json['data'] as String,
+);
+
+Map<String, dynamic> _$AgentEventToJson(AgentEvent instance) =>
+    <String, dynamic>{
+      'agentEventType': instance.agentEventType,
+      'data': instance.data,
+    };
+
+AgentMessage _$AgentMessageFromJson(Map<String, dynamic> json) => AgentMessage(
+  sessionId: json['sessionId'] as String,
+  taskId: json['taskId'] as String,
+  role: json['role'] as String,
+  to: json['to'] as String,
+  type: json['type'] as String,
+  content: json['content'],
+  completions: json['completions'] == null
+      ? null
+      : Completions.fromJson(json['completions'] as Map<String, dynamic>),
+  createTime: DateTime.parse(json['createTime'] as String),
+);
+
+Map<String, dynamic> _$AgentMessageToJson(AgentMessage instance) =>
+    <String, dynamic>{
+      'sessionId': instance.sessionId,
+      'taskId': instance.taskId,
+      'role': instance.role,
+      'to': instance.to,
+      'type': instance.type,
+      'content': ?instance.content,
+      'completions': ?instance.completions?.toJson(),
+      'createTime': instance.createTime.toIso8601String(),
+    };
+
+AgentMessageChunk _$AgentMessageChunkFromJson(Map<String, dynamic> json) =>
+    AgentMessageChunk(
+      sessionId: json['sessionId'] as String,
+      taskId: json['taskId'] as String,
+      role: json['role'] as String,
+      to: json['to'] as String,
+      type: json['type'] as String,
+      part: json['part'],
+      createTime: DateTime.parse(json['createTime'] as String),
+    );
+
+Map<String, dynamic> _$AgentMessageChunkToJson(AgentMessageChunk instance) =>
+    <String, dynamic>{
+      'sessionId': instance.sessionId,
+      'taskId': instance.taskId,
+      'role': instance.role,
+      'to': instance.to,
+      'type': instance.type,
+      'part': ?instance.part,
+      'createTime': instance.createTime.toIso8601String(),
+    };
+
+Completions _$CompletionsFromJson(Map<String, dynamic> json) => Completions(
+  usage: json['usage'] == null
+      ? null
+      : TokenUsage.fromJson(json['usage'] as Map<String, dynamic>),
+  id: json['id'] as String,
+  model: json['model'] as String,
+);
+
+Map<String, dynamic> _$CompletionsToJson(Completions instance) =>
+    <String, dynamic>{
+      'usage': ?instance.usage?.toJson(),
+      'id': instance.id,
+      'model': instance.model,
+    };
+
+TokenUsage _$TokenUsageFromJson(Map<String, dynamic> json) => TokenUsage(
+  promptTokens: (json['promptTokens'] as num).toInt(),
+  completionTokens: (json['completionTokens'] as num).toInt(),
+  totalTokens: (json['totalTokens'] as num).toInt(),
+);
+
+Map<String, dynamic> _$TokenUsageToJson(TokenUsage instance) =>
+    <String, dynamic>{
+      'promptTokens': instance.promptTokens,
+      'completionTokens': instance.completionTokens,
+      'totalTokens': instance.totalTokens,
+    };
+
+UserTask _$UserTaskFromJson(Map<String, dynamic> json) => UserTask(
+  taskId: json['taskId'] as String?,
+  content: (json['content'] as List<dynamic>)
+      .map((e) => Content.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  isChunk: json['isChunk'] as bool? ?? true,
+);
+
+Map<String, dynamic> _$UserTaskToJson(UserTask instance) => <String, dynamic>{
+  'taskId': ?instance.taskId,
+  'content': instance.content.map((e) => e.toJson()).toList(),
+  'isChunk': instance.isChunk,
+};
+
+EventToolReturn _$EventToolReturnFromJson(Map<String, dynamic> json) =>
+    EventToolReturn(
+      agentEventType: json['agentEventType'] as String,
+      toolReturn: ToolReturn.fromJson(
+        json['toolReturn'] as Map<String, dynamic>,
+      ),
+    );
+
+Map<String, dynamic> _$EventToolReturnToJson(EventToolReturn instance) =>
+    <String, dynamic>{
+      'agentEventType': instance.agentEventType,
+      'toolReturn': instance.toolReturn.toJson(),
+    };
+
+Dispatch _$DispatchFromJson(Map<String, dynamic> json) => Dispatch(
+  dispatchId: json['dispatchId'] as String,
+  agentId: json['agentId'] as String,
+  name: json['name'] as String,
+  content: (json['content'] as List<dynamic>)
+      .map((e) => Content.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
+
+Map<String, dynamic> _$DispatchToJson(Dispatch instance) => <String, dynamic>{
+  'dispatchId': instance.dispatchId,
+  'agentId': instance.agentId,
+  'name': instance.name,
+  'content': instance.content.map((e) => e.toJson()).toList(),
+};
+
+TaskStatus _$TaskStatusFromJson(Map<String, dynamic> json) => TaskStatus(
+  status: json['status'] as String,
+  description: json['description'] as Map<String, dynamic>?,
+);
+
+Map<String, dynamic> _$TaskStatusToJson(TaskStatus instance) =>
+    <String, dynamic>{
+      'status': instance.status,
+      'description': ?instance.description,
+    };
+
+Reflection _$ReflectionFromJson(Map<String, dynamic> json) => Reflection(
+  isPass: json['isPass'] as bool,
+  messageScore: MessageScore.fromJson(
+    json['messageScore'] as Map<String, dynamic>,
+  ),
+  passScore: (json['passScore'] as num).toInt(),
+  count: (json['count'] as num).toInt(),
+  maxCount: (json['maxCount'] as num).toInt(),
+);
+
+Map<String, dynamic> _$ReflectionToJson(Reflection instance) =>
+    <String, dynamic>{
+      'isPass': instance.isPass,
+      'messageScore': instance.messageScore.toJson(),
+      'passScore': instance.passScore,
+      'count': instance.count,
+      'maxCount': instance.maxCount,
+    };
+
+MessageScore _$MessageScoreFromJson(Map<String, dynamic> json) => MessageScore(
+  content: (json['content'] as List<dynamic>)
+      .map((e) => Content.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  messageType: json['messageType'] as String,
+  message: json['message'] as String,
+  reflectScoreList: (json['reflectScoreList'] as List<dynamic>)
+      .map((e) => ReflectScore.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
+
+Map<String, dynamic> _$MessageScoreToJson(
+  MessageScore instance,
+) => <String, dynamic>{
+  'content': instance.content.map((e) => e.toJson()).toList(),
+  'messageType': instance.messageType,
+  'message': instance.message,
+  'reflectScoreList': instance.reflectScoreList.map((e) => e.toJson()).toList(),
+};
+
+ReflectScore _$ReflectScoreFromJson(Map<String, dynamic> json) => ReflectScore(
+  score: (json['score'] as num).toInt(),
+  description: json['description'] as String?,
+);
+
+Map<String, dynamic> _$ReflectScoreToJson(ReflectScore instance) =>
+    <String, dynamic>{
+      'score': instance.score,
+      'description': ?instance.description,
+    };
