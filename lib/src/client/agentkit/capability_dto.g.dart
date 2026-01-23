@@ -58,9 +58,8 @@ Map<String, dynamic> _$CallbackOpenToolToJson(CallbackOpenTool instance) =>
     };
 
 LLMConfig _$LLMConfigFromJson(Map<String, dynamic> json) => LLMConfig(
-  baseUrl:
-      json['baseUrl'] as String? ?? "http://localhost:8888/agentos/llm/text",
-  apiKey: json['apiKey'] as String?,
+  baseUrl: json['baseUrl'] as String? ?? "http://localhost:8888/llmkit/text",
+  apiKey: json['apiKey'] as String? ?? "sk-",
   model: json['model'] as String,
   temperature: (json['temperature'] as num?)?.toDouble() ?? 0.0,
   maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 4096,

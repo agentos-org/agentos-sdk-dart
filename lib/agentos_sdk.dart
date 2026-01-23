@@ -1,8 +1,4 @@
-export 'src/utils/api_client.dart';
 export 'src/client/agentos/agentos_sdk.dart';
-export 'src/client/systemkit/systemkit_client.dart';
-export 'src/client/agentkit/agentkit_client.dart';
-export 'src/client/appkit/appkit_client.dart';
 export 'src/client/agentos/agentos_event_handler.dart';
 export 'src/client/agentkit/agent_message_handler.dart';
 export 'src/client/shared/dto.dart';

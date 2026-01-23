@@ -8,7 +8,7 @@ manually.
 
 - Root API: version check
 - AgentKit API: LiteAgent proxy endpoints (version, agent CRUD, session init,
-  chat stream/simple, history, stop/clear, OpenTool list, callbacks)
+  chat stream/simple, history, stop/clear, callbacks)
 - AppKit API: bundle registration and SSE subscription
 
 ## Getting Started
@@ -29,22 +29,15 @@ dart pub get
 ## Usage
 
 ```dart
-import 'dart:io';
-
 import 'package:agentos_sdk/agentos_sdk.dart';
 
 Future<void> main() async {
-  final baseUrl =
-      Platform.environment['AGENTOS_BASEURL'] ?? 'http://localhost:20261';
-
-  final sdk = AgentOSSDK(baseUrl: baseUrl);
+  final sdk = AgentOSSDK();
 
   final version = await sdk.agentos.getVersion();
   print('AgentOS version: ${version.version}');
 
   await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
-  final tools = await sdk.agentkit.openToolList();
-  print('OpenTool count: ${tools.length}');
 
   await sdk.agentos.subscribe(_DemoEventHandler());
   await Future<void>.delayed(const Duration(seconds: 1));
@@ -105,7 +98,6 @@ class _DemoEventHandler extends AgentOSEventHandler {
 | `history({required String sessionId})` | `sessionId` | Retrieves message history for a session. |
 | `stop({required String sessionId, String? taskId})` | `sessionId`, `taskId` | Stops a session or task. |
 | `clear({required String sessionId})` | `sessionId` | Clears session data. |
-| `openToolList()` | none | Lists available OpenTools. |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | Sends tool callback results. |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | Sends streaming tool callback results. |
 
@@ -125,8 +117,7 @@ class _DemoEventHandler extends AgentOSEventHandler {
 
 ## Configuration
 
-- Default base URL: `http://localhost:20261`
-- Override via `AgentOSSDK(baseUrl: ...)`, `ApiClient`, or `BaseOptions`.
+- Base URL is managed by the SDK and defaults to `http://localhost:20261`.
 
 ## Notes
 

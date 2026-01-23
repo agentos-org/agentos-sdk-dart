@@ -1,6 +1,10 @@
 import 'dart:io';
 
 import 'package:agentos_sdk/agentos_sdk.dart';
+import 'package:agentos_sdk/src/client/agentkit/agentkit_client.dart';
+import 'package:agentos_sdk/src/client/appkit/appkit_client.dart';
+import 'package:agentos_sdk/src/client/systemkit/systemkit_client.dart';
+import 'package:agentos_sdk/src/utils/api_client.dart';
 import 'package:dio/dio.dart';
 import 'package:test/test.dart';
 

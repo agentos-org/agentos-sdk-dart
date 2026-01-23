@@ -1,7 +1,5 @@
 import 'dart:convert';
 
-import 'package:dio/dio.dart';
-
 import '../agentkit/agent_message_handler.dart';
 import '../agentkit/agentkit_client.dart';
 import '../agentkit/agents_dto.dart';
@@ -18,14 +16,7 @@ import '../systemkit/systemkit_client.dart';
 
 /// Unified AgentOS SDK that manages Root, AgentKit, and AppKit APIs.
 class AgentOSSDK {
-  AgentOSSDK({
-    ApiClient? apiClient,
-    Dio? dio,
-    String? baseUrl,
-    BaseOptions? baseOptions,
-  }) : _apiClient =
-            apiClient ??
-            ApiClient(dio: dio, baseUrl: baseUrl, baseOptions: baseOptions) {
+  AgentOSSDK() : _apiClient = ApiClient() {
     _systemKit = SystemKitClient(apiClient: _apiClient);
     _agentKit = AgentKitClient(apiClient: _apiClient);
     _appKit = AppKitClient(apiClient: _apiClient);
@@ -263,13 +254,6 @@ class AgentKitModule {
     return _client._agentKit.clear(
       bearerToken: _client._requireToken(),
       sessionId: sessionId,
-    );
-  }
-
-  /// Lists available OpenTools via AgentKit.
-  Future<List<dynamic>> openToolList() {
-    return _client._agentKit.openToolList(
-      bearerToken: _client._requireToken(),
     );
   }
 

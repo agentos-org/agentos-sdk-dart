@@ -66,15 +66,15 @@ class CallbackOpenTool {
 @JsonSerializable()
 class LLMConfig {
   String baseUrl;
-  String? apiKey;
+  String apiKey;
   String model;
   double temperature;
   int maxTokens;
   double topP;
 
   LLMConfig({
-    this.baseUrl = "http://localhost:8888/agentos/llm/text",
-    required this.apiKey,
+    this.baseUrl = "http://localhost:8888/llmkit/text",
+    this.apiKey = "sk-",
     required this.model,
     this.temperature = 0.0,
     this.maxTokens = 4096,
@@ -85,7 +85,6 @@ class LLMConfig {
 
   Map<String, dynamic> toJson() => _$LLMConfigToJson(this);
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class ReflectPrompt {

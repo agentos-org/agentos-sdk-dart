@@ -7,7 +7,7 @@
 
 - Root API：版本查询
 - AgentKit API：LiteAgent 代理接口（版本、Agent CRUD、会话初始化、
-  chat 流式/单次、历史记录、stop/clear、OpenTool 列表、回调）
+  chat 流式/单次、历史记录、stop/clear、回调）
 - AppKit API：bundle 注册与 SSE 订阅
 
 ## 快速开始
@@ -28,22 +28,15 @@ dart pub get
 ## 使用示例
 
 ```dart
-import 'dart:io';
-
 import 'package:agentos_sdk/agentos_sdk.dart';
 
 Future<void> main() async {
-  final baseUrl =
-      Platform.environment['AGENTOS_BASEURL'] ?? 'http://localhost:20261';
-
-  final sdk = AgentOSSDK(baseUrl: baseUrl);
+  final sdk = AgentOSSDK();
 
   final version = await sdk.agentos.getVersion();
   print('AgentOS version: ${version.version}');
 
   await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
-  final tools = await sdk.agentkit.openToolList();
-  print('OpenTool count: ${tools.length}');
 
   await sdk.agentos.subscribe(_DemoEventHandler());
   await Future<void>.delayed(const Duration(seconds: 1));
@@ -104,7 +97,6 @@ class _DemoEventHandler extends AgentOSEventHandler {
 | `history({required String sessionId})` | `sessionId` | 获取会话历史消息。 |
 | `stop({required String sessionId, String? taskId})` | `sessionId`, `taskId` | 停止会话或任务。 |
 | `clear({required String sessionId})` | `sessionId` | 清除会话数据。 |
-| `openToolList()` | 无 | 获取可用 OpenTool 列表。 |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | 发送工具回调结果。 |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | 发送流式工具回调结果。 |
 
@@ -124,8 +116,7 @@ class _DemoEventHandler extends AgentOSEventHandler {
 
 ## 配置
 
-- 默认 base URL：`http://localhost:20261`
-- 可通过 `AgentOSSDK(baseUrl: ...)`、`ApiClient` 或 `BaseOptions` 覆盖。
+- base URL 由 SDK 统一管理，默认值为 `http://localhost:20261`。
 
 ## 备注
 

@@ -166,14 +166,6 @@ class AgentKitClient {
     return _asJsonMap(response.data);
   }
 
-  Future<List<dynamic>> openToolList({required String bearerToken}) async {
-    final Response<dynamic> response = await _apiClient.dio.get(
-      '/agentkit/opentool-list',
-      options: _authOptions(bearerToken),
-    );
-    return _asJsonList(response.data);
-  }
-
   Future<Map<String, dynamic>> callback({
     required String bearerToken,
     required String sessionId,

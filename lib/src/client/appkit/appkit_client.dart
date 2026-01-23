@@ -27,6 +27,7 @@ class AppKitClient {
           '/appkit/subscribe',
           options: Options(
             responseType: ResponseType.stream,
+            receiveTimeout: Duration.zero,
             headers: {HttpHeaders.authorizationHeader: 'Bearer $bearerToken'},
           ),
         );
