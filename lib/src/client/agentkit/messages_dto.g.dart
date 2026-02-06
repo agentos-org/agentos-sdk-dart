@@ -19,11 +19,14 @@ Map<String, dynamic> _$AgentEventToJson(AgentEvent instance) =>
 
 AgentMessage _$AgentMessageFromJson(Map<String, dynamic> json) => AgentMessage(
   sessionId: json['sessionId'] as String,
+  agentId: json['agentId'] as String?,
+  parentTaskId: json['parentTaskId'] as String?,
   taskId: json['taskId'] as String,
   role: json['role'] as String,
   to: json['to'] as String,
   type: json['type'] as String,
   content: json['content'],
+  reasoningContent: json['reasoningContent'] as String?,
   completions: json['completions'] == null
       ? null
       : Completions.fromJson(json['completions'] as Map<String, dynamic>),
@@ -33,11 +36,14 @@ AgentMessage _$AgentMessageFromJson(Map<String, dynamic> json) => AgentMessage(
 Map<String, dynamic> _$AgentMessageToJson(AgentMessage instance) =>
     <String, dynamic>{
       'sessionId': instance.sessionId,
+      'agentId': ?instance.agentId,
+      'parentTaskId': ?instance.parentTaskId,
       'taskId': instance.taskId,
       'role': instance.role,
       'to': instance.to,
       'type': instance.type,
       'content': ?instance.content,
+      'reasoningContent': ?instance.reasoningContent,
       'completions': ?instance.completions?.toJson(),
       'createTime': instance.createTime.toIso8601String(),
     };
@@ -45,6 +51,8 @@ Map<String, dynamic> _$AgentMessageToJson(AgentMessage instance) =>
 AgentMessageChunk _$AgentMessageChunkFromJson(Map<String, dynamic> json) =>
     AgentMessageChunk(
       sessionId: json['sessionId'] as String,
+      agentId: json['agentId'] as String?,
+      parentTaskId: json['parentTaskId'] as String?,
       taskId: json['taskId'] as String,
       role: json['role'] as String,
       to: json['to'] as String,
@@ -56,6 +64,8 @@ AgentMessageChunk _$AgentMessageChunkFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$AgentMessageChunkToJson(AgentMessageChunk instance) =>
     <String, dynamic>{
       'sessionId': instance.sessionId,
+      'agentId': ?instance.agentId,
+      'parentTaskId': ?instance.parentTaskId,
       'taskId': instance.taskId,
       'role': instance.role,
       'to': instance.to,
@@ -108,7 +118,7 @@ Map<String, dynamic> _$UserTaskToJson(UserTask instance) => <String, dynamic>{
 
 EventToolReturn _$EventToolReturnFromJson(Map<String, dynamic> json) =>
     EventToolReturn(
-      agentEventType: json['agentEventType'] as String,
+      event: json['event'] as String,
       toolReturn: ToolReturn.fromJson(
         json['toolReturn'] as Map<String, dynamic>,
       ),
@@ -116,7 +126,7 @@ EventToolReturn _$EventToolReturnFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$EventToolReturnToJson(EventToolReturn instance) =>
     <String, dynamic>{
-      'agentEventType': instance.agentEventType,
+      'event': instance.event,
       'toolReturn': instance.toolReturn.toJson(),
     };
 

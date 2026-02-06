@@ -20,12 +20,12 @@ abstract class AgentMessageHandler {
     if(tool != null) {
       await tool!.streamCall(functionCall.name, functionCall.arguments, (String event, Map<String, dynamic> onEvent){
         ToolReturn toolReturn = ToolReturn(id: functionCall.id, result: onEvent);
-        EventToolReturn eventToolReturn = EventToolReturn(agentEventType: event, toolReturn: toolReturn);
+        EventToolReturn eventToolReturn = EventToolReturn(event: event, toolReturn: toolReturn);
         onToolReturn(eventToolReturn);
       });
     }
     ToolReturn toolReturn = ToolReturn(id: functionCall.id, result: FunctionNotSupportedException(functionName: functionCall.name).toJson());
-    EventToolReturn eventToolReturn = EventToolReturn(agentEventType: EventType.ERROR, toolReturn: toolReturn);
+    EventToolReturn eventToolReturn = EventToolReturn(event: EventType.ERROR, toolReturn: toolReturn);
     onToolReturn(eventToolReturn);
   }
 

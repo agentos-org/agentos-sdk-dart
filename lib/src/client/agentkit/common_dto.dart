@@ -16,7 +16,7 @@ typedef FunctionNotSupportedException = opentool.FunctionNotSupportedException;
 
 
 class AgentRoleType {
-  static const String system = "developer"; // system prompt
+  static const String system = "system"; // system prompt
   static const String user = "user"; // user
   static const String agent = "agent"; // agent
   static const String llm = "assistant"; // llm
@@ -57,4 +57,3 @@ class AgentEventType {
   static const String chunk = "chunk";
   static const String functionCall = "functionCall";
 }
-

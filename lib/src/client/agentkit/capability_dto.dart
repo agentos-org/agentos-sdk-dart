@@ -24,6 +24,8 @@ enum Protocol {
   openmodbus,
   jsonrpcHttp,
   opentool,
+  mcpStdio,
+  mcpHttp,
   serialport,
 }
 
@@ -40,9 +42,16 @@ class OpenSpec {
   String openSpec;
   ApiKey? apiKey;
   Protocol protocol;
+  String? serverUrl;
   String? openToolId; //When protocol is open tool, this is the tool id
 
-  OpenSpec({required this.openSpec, this.apiKey, required this.protocol, this.openToolId});
+  OpenSpec({
+    required this.openSpec,
+    this.apiKey,
+    required this.protocol,
+    this.serverUrl,
+    this.openToolId,
+  });
 
   factory OpenSpec.fromJson(Map<String, dynamic> json) => _$OpenSpecFromJson(json);
 
@@ -71,6 +80,8 @@ class LLMConfig {
   double temperature;
   int maxTokens;
   double topP;
+  bool? supportsToolCalling;
+  bool? supportsDeepThinking;
 
   LLMConfig({
     this.baseUrl = "http://localhost:8888/llmkit/text",
@@ -78,7 +89,9 @@ class LLMConfig {
     required this.model,
     this.temperature = 0.0,
     this.maxTokens = 4096,
-    this.topP = 1.0
+    this.topP = 1.0,
+    this.supportsToolCalling,
+    this.supportsDeepThinking,
   });
 
   factory LLMConfig.fromJson(Map<String, dynamic> json) => _$LLMConfigFromJson(json);
@@ -114,27 +127,32 @@ class SimpleCapability {
   Map<String, dynamic> toJson() => _$SimpleCapabilityToJson(this);
 }
 
-
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class Capability extends SimpleCapability {
   List<OpenSpec>? openSpecList;
-  CallbackOpenTool? clientOpenTool;
+  CallbackOpenTool? callbackOpenTool;
   List<SessionName>? sessionList;
   List<ReflectPrompt>? reflectPromptList;
   int timeoutSeconds;
   PipelineStrategyType taskPipelineStrategy;
   PipelineStrategyType? toolPipelineStrategy;
+  bool? auto;
+  List<LLMConfig>? llmConfigList;
+  bool? enableThinking;
 
   Capability({
     required super.llmConfig,
     required super.systemPrompt,
     this.openSpecList,
-    this.clientOpenTool,
+    this.callbackOpenTool,
     this.sessionList,
     this.reflectPromptList,
     this.timeoutSeconds = 3600,
     this.taskPipelineStrategy  = PipelineStrategyType.parallel,
-    this.toolPipelineStrategy
+    this.toolPipelineStrategy,
+    this.auto,
+    this.llmConfigList,
+    this.enableThinking,
   });
 
   factory Capability.fromJson(Map<String, dynamic> json) => _$CapabilityFromJson(json);
@@ -142,6 +160,7 @@ class Capability extends SimpleCapability {
   @override
   Map<String, dynamic> toJson() => _$CapabilityToJson(this);
 }
+
 
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
@@ -155,5 +174,3 @@ class OpenToolInfo {
 
   Map<String, dynamic> toJson() => _$OpenToolInfoToJson(this);
 }
-
-

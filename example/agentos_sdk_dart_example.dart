@@ -81,8 +81,8 @@ class _DemoEventHandler extends AgentOSEventHandler {
   }
 
   @override
-  Future<void> onCall(Call call) async {
-    print('Call event: ${call.id}');
+  Future<void> onAgents(Agents agents) async {
+    print('Agents event: ${agents.agents}');
   }
 
   @override

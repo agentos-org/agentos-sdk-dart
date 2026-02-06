@@ -14,4 +14,11 @@ class SystemKitClient {
       Map<String, dynamic>.from(response.data as Map),
     );
   }
+
+  Future<RootInfo> getRoot() async {
+    final Response<dynamic> response = await _apiClient.dio.get('/');
+    return RootInfo.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
 }

@@ -29,6 +29,8 @@ class AccessToken {
 
 class AgentOSEventType {
   static const String welcome = "welcome";
+  static const String agents = "agents";
+  static const String error = "error";
   static const String call = "call";
 }
 
@@ -49,8 +51,9 @@ class AgentOSEvent {
 @JsonSerializable()
 class Welcome {
   String bundleId;
+  String? token;
 
-  Welcome({required this.bundleId});
+  Welcome({required this.bundleId, this.token});
 
   factory Welcome.fromJson(Map<String, dynamic> json) => _$WelcomeFromJson(json);
 
@@ -71,4 +74,27 @@ class Call {
   Map<String, dynamic> toJson() => _$CallToJson(this);
 }
 
+@JsonSerializable()
+class Agents {
+  String bundleId;
+  List<String> agents;
+
+  Agents({required this.bundleId, required this.agents});
+
+  factory Agents.fromJson(Map<String, dynamic> json) => _$AgentsFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AgentsToJson(this);
+}
+
+@JsonSerializable()
+class AppKitError {
+  String error;
+
+  AppKitError({required this.error});
+
+  factory AppKitError.fromJson(Map<String, dynamic> json) =>
+      _$AppKitErrorFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AppKitErrorToJson(this);
+}
 

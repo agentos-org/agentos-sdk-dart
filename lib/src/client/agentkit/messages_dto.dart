@@ -20,11 +20,14 @@ class AgentEvent {
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class AgentMessage {
   String sessionId;
+  String? agentId;
+  String? parentTaskId;
   String taskId;
   String role;
   String to;
   String type;
   dynamic content;
+  String? reasoningContent;
 
   Completions? completions; //When role is llm, this is current llm calling token usage
 
@@ -32,11 +35,14 @@ class AgentMessage {
 
   AgentMessage({
     required this.sessionId,
+    this.agentId,
+    this.parentTaskId,
     required this.taskId,
     required this.role,
     required this.to,
     required this.type,
     required this.content,
+    this.reasoningContent,
     this.completions,
     required this.createTime
   });
@@ -51,6 +57,8 @@ class AgentMessage {
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class AgentMessageChunk {
   String sessionId;
+  String? agentId;
+  String? parentTaskId;
   String taskId;
   String role;
   String to;
@@ -60,6 +68,8 @@ class AgentMessageChunk {
 
   AgentMessageChunk({
     required this.sessionId,
+    this.agentId,
+    this.parentTaskId,
     required this.taskId,
     required this.role,
     required this.to,
@@ -134,15 +144,17 @@ class UserTask {
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class EventToolReturn {
-  String agentEventType; // EventType.start | EventType.data | EventType.error | EventType.done
+  @JsonKey(name: 'event')
+  String event; // EventType.start | EventType.data | EventType.error | EventType.done
   ToolReturn toolReturn;
 
-  EventToolReturn({required this.agentEventType, required this.toolReturn});
+  EventToolReturn({required this.event, required this.toolReturn});
 
   factory EventToolReturn.fromJson(Map<String, dynamic> json) => _$EventToolReturnFromJson(json);
 
   Map<String, dynamic> toJson() => _$EventToolReturnToJson(this);
 }
+
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class Dispatch {

@@ -18,8 +18,9 @@ class Session {
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class SessionName extends Session {
   String? name; // OpenAI: The name of the function to be called. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
+  String? description;
 
-  SessionName({required super.sessionId, String? name});
+  SessionName({required super.sessionId, this.name, this.description});
 
   factory SessionName.fromJson(Map<String, dynamic> json) => _$SessionNameFromJson(json);
 
@@ -51,5 +52,4 @@ class SessionAgentMessage {
 
   Map<String, dynamic> toJson() => _$SessionAgentMessageToJson(this);
 }
-
 

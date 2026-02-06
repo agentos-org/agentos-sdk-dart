@@ -10,3 +10,6 @@ export 'src/client/agentkit/sessions_dto.dart';
 export 'src/client/agentkit/capability_dto.dart';
 export 'src/client/agentkit/messages_dto.dart';
 export 'src/client/agentkit/planning_dto.dart';
+export 'src/client/intentkit/dto.dart';
+export 'src/client/llmkit/llmkit_client.dart';
+export 'src/client/toolkit/toolkit_client.dart';

@@ -30,11 +30,14 @@ Map<String, dynamic> _$AgentOSEventToJson(AgentOSEvent instance) =>
       'data': instance.data,
     };
 
-Welcome _$WelcomeFromJson(Map<String, dynamic> json) =>
-    Welcome(bundleId: json['bundleId'] as String);
+Welcome _$WelcomeFromJson(Map<String, dynamic> json) => Welcome(
+  bundleId: json['bundleId'] as String,
+  token: json['token'] as String?,
+);
 
 Map<String, dynamic> _$WelcomeToJson(Welcome instance) => <String, dynamic>{
   'bundleId': instance.bundleId,
+  'token': instance.token,
 };
 
 Call _$CallFromJson(Map<String, dynamic> json) => Call(
@@ -50,3 +53,19 @@ Map<String, dynamic> _$CallToJson(Call instance) => <String, dynamic>{
   'from': instance.from,
   'contentList': instance.contentList,
 };
+
+Agents _$AgentsFromJson(Map<String, dynamic> json) => Agents(
+  bundleId: json['bundleId'] as String,
+  agents: (json['agents'] as List<dynamic>).map((e) => e as String).toList(),
+);
+
+Map<String, dynamic> _$AgentsToJson(Agents instance) => <String, dynamic>{
+  'bundleId': instance.bundleId,
+  'agents': instance.agents,
+};
+
+AppKitError _$AppKitErrorFromJson(Map<String, dynamic> json) =>
+    AppKitError(error: json['error'] as String);
+
+Map<String, dynamic> _$AppKitErrorToJson(AppKitError instance) =>
+    <String, dynamic>{'error': instance.error};

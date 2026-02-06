@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
+
 import '../agentkit/agent_message_handler.dart';
 import '../agentkit/agentkit_client.dart';
 import '../agentkit/agents_dto.dart';
@@ -13,6 +15,10 @@ import '../appkit/appkit_client.dart';
 import '../appkit/dto.dart';
 import '../systemkit/dto.dart';
 import '../systemkit/systemkit_client.dart';
+import '../intentkit/dto.dart';
+import '../intentkit/intentkit_client.dart';
+import '../llmkit/llmkit_client.dart';
+import '../toolkit/toolkit_client.dart';
 
 /// Unified AgentOS SDK that manages Root, AgentKit, and AppKit APIs.
 class AgentOSSDK {
@@ -20,18 +26,30 @@ class AgentOSSDK {
     _systemKit = SystemKitClient(apiClient: _apiClient);
     _agentKit = AgentKitClient(apiClient: _apiClient);
     _appKit = AppKitClient(apiClient: _apiClient);
+    _intentKit = IntentKitClient(apiClient: _apiClient);
+    _llmKit = LlmKitClient(apiClient: _apiClient);
+    _toolKit = ToolKitClient(apiClient: _apiClient);
     agentos = AgentOSModule._(this);
     agentkit = AgentKitModule._(this);
+    intentkit = IntentKitModule._(this);
+    llmkit = LlmKitModule._(this);
+    toolkit = ToolKitModule._(this);
   }
 
   final ApiClient _apiClient;
   late final SystemKitClient _systemKit;
   late final AgentKitClient _agentKit;
   late final AppKitClient _appKit;
+  late final IntentKitClient _intentKit;
+  late final LlmKitClient _llmKit;
+  late final ToolKitClient _toolKit;
   String? _token;
 
   late final AgentOSModule agentos;
   late final AgentKitModule agentkit;
+  late final IntentKitModule intentkit;
+  late final LlmKitModule llmkit;
+  late final ToolKitModule toolkit;
 
   Map<String, dynamic> _asJsonMap(String data) {
     final decoded = jsonDecode(data);
@@ -63,6 +81,9 @@ class AgentOSModule {
   /// Fetches the AgentOS service version.
   Future<Version> getVersion() => _client._systemKit.getVersion();
 
+  /// Fetches the AgentOS gateway metadata.
+  Future<RootInfo> getRoot() => _client._systemKit.getRoot();
+
   /// Registers an app bundle and stores the returned bearer token internally.
   Future<void> registerBundle({required String bundleId}) async {
     final info = await _client._appKit.registerBundle(bundleId: bundleId);
@@ -80,6 +101,13 @@ class AgentOSModule {
           if (event.agentosEventType == AgentOSEventType.welcome) {
             final payload = _client._asJsonMap(event.data);
             await handler.onWelcome(Welcome.fromJson(payload));
+          } else if (event.agentosEventType == AgentOSEventType.agents) {
+            final payload = _client._asJsonMap(event.data);
+            await handler.onAgents(Agents.fromJson(payload));
+          } else if (event.agentosEventType == AgentOSEventType.error) {
+            final payload = _client._asJsonMap(event.data);
+            final error = AppKitError.fromJson(payload);
+            await handler.onError(Exception(error.error));
           } else if (event.agentosEventType == AgentOSEventType.call) {
             final payload = _client._asJsonMap(event.data);
             await handler.onCall(Call.fromJson(payload));
@@ -108,6 +136,13 @@ class AgentKitModule {
   AgentKitModule._(this._client);
 
   final AgentOSSDK _client;
+
+  /// Fetches the AgentKit service version.
+  Future<Version> getVersion() {
+    return _client._agentKit.getVersion(
+      bearerToken: _client._requireToken(),
+    );
+  }
 
   /// Retrieves an agent by agentId.
   Future<Map<String, dynamic>> getAgent({required String agentId}) {
@@ -286,6 +321,92 @@ class AgentKitModule {
       bearerToken: _client._requireToken(),
       sessionId: session.sessionId,
       toolReturn: toolReturn,
+    );
+  }
+}
+
+class IntentKitModule {
+  IntentKitModule._(this._client);
+
+  final AgentOSSDK _client;
+
+  Future<IntentKitJobHandle> submitRaw(IntentKitSubmitRawRequest request) {
+    return _client._intentKit.submitRaw(
+      bearerToken: _client._requireToken(),
+      request: request,
+    );
+  }
+
+  Future<IntentKitJobHandle> submitIntent(
+    IntentKitSubmitIntentRequest request,
+  ) {
+    return _client._intentKit.submitIntent(
+      bearerToken: _client._requireToken(),
+      request: request,
+    );
+  }
+
+  Future<IntentKitJobHandle> confirmJob(
+    IntentKitConfirmJobRequest request,
+  ) {
+    return _client._intentKit.confirmJob(
+      bearerToken: _client._requireToken(),
+      request: request,
+    );
+  }
+
+  Future<IntentKitSuggestNextActionResponse> suggestNextAction(
+    IntentKitSuggestNextActionRequest request,
+  ) {
+    return _client._intentKit.suggestNextAction(
+      bearerToken: _client._requireToken(),
+      request: request,
+    );
+  }
+}
+
+class LlmKitModule {
+  LlmKitModule._(this._client);
+
+  final AgentOSSDK _client;
+
+  Future<Response<dynamic>> request(
+    LlmKitServiceType service,
+    String path, {
+    String method = 'POST',
+    Map<String, dynamic>? queryParameters,
+    dynamic data,
+    Options? options,
+  }) {
+    return _client._llmKit.request(
+      service,
+      path,
+      method: method,
+      queryParameters: queryParameters,
+      data: data,
+      options: options,
+    );
+  }
+}
+
+class ToolKitModule {
+  ToolKitModule._(this._client);
+
+  final AgentOSSDK _client;
+
+  Future<Response<dynamic>> request(
+    String path, {
+    String method = 'POST',
+    Map<String, dynamic>? queryParameters,
+    dynamic data,
+    Options? options,
+  }) {
+    return _client._toolKit.request(
+      path,
+      method: method,
+      queryParameters: queryParameters,
+      data: data,
+      options: options,
     );
   }
 }

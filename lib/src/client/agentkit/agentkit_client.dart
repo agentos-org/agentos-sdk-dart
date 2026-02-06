@@ -9,11 +9,20 @@ import 'capability_dto.dart';
 import 'common_dto.dart';
 import 'messages_dto.dart';
 import 'sessions_dto.dart';
+import '../systemkit/dto.dart';
 
 class AgentKitClient {
   AgentKitClient({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
   final ApiClient _apiClient;
+
+  Future<Version> getVersion({required String bearerToken}) async {
+    final Response<dynamic> response = await _apiClient.dio.get(
+      '/agentkit/version',
+      options: _authOptions(bearerToken),
+    );
+    return Version.fromJson(Map<String, dynamic>.from(response.data as Map));
+  }
 
   Future<Map<String, dynamic>> getAgent({
     required String bearerToken,
