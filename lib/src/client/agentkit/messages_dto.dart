@@ -1,21 +1,23 @@
 import 'package:json_annotation/json_annotation.dart';
 import '../shared/dto.dart';
+import 'capability_dto.dart';
 import 'common_dto.dart';
 
 part 'messages_dto.g.dart';
 
 @JsonSerializable()
 class AgentEvent {
-  String agentEventType; // AgentEventType.message | AgentEventType.chunk | AgentEventType.functionCall
+  String
+  agentEventType; // AgentEventType.message | AgentEventType.chunk | AgentEventType.functionCall (agentmessage/agentmessagechunk are normalized)
   String data;
 
   AgentEvent({required this.agentEventType, required this.data});
 
-  factory AgentEvent.fromJson(Map<String, dynamic> json) => _$AgentEventFromJson(json);
+  factory AgentEvent.fromJson(Map<String, dynamic> json) =>
+      _$AgentEventFromJson(json);
 
   Map<String, dynamic> toJson() => _$AgentEventToJson(this);
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class AgentMessage {
@@ -29,7 +31,8 @@ class AgentMessage {
   dynamic content;
   String? reasoningContent;
 
-  Completions? completions; //When role is llm, this is current llm calling token usage
+  Completions?
+  completions; //When role is llm, this is current llm calling token usage
 
   DateTime createTime;
 
@@ -44,15 +47,14 @@ class AgentMessage {
     required this.content,
     this.reasoningContent,
     this.completions,
-    required this.createTime
+    required this.createTime,
   });
 
-  factory AgentMessage.fromJson(Map<String, dynamic> json) => _$AgentMessageFromJson(json);
+  factory AgentMessage.fromJson(Map<String, dynamic> json) =>
+      _$AgentMessageFromJson(json);
 
   Map<String, dynamic> toJson() => _$AgentMessageToJson(this);
-
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class AgentMessageChunk {
@@ -75,15 +77,14 @@ class AgentMessageChunk {
     required this.to,
     required this.type,
     required this.part,
-    required this.createTime
+    required this.createTime,
   });
 
-  factory AgentMessageChunk.fromJson(Map<String, dynamic> json) => _$AgentMessageChunkFromJson(json);
+  factory AgentMessageChunk.fromJson(Map<String, dynamic> json) =>
+      _$AgentMessageChunkFromJson(json);
 
   Map<String, dynamic> toJson() => _$AgentMessageChunkToJson(this);
-
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class Completions {
@@ -94,53 +95,73 @@ class Completions {
 
   /// When role is llm, this is current /chat/completions return message id
   String model;
+  CompletionsLimits? limits;
 
-  Completions({required this.usage, required this.id, required this.model});
+  Completions({
+    required this.usage,
+    required this.id,
+    required this.model,
+    this.limits,
+  });
 
-  factory Completions.fromJson(Map<String, dynamic> json) => _$CompletionsFromJson(json);
+  factory Completions.fromJson(Map<String, dynamic> json) =>
+      _$CompletionsFromJson(json);
 
   Map<String, dynamic> toJson() => _$CompletionsToJson(this);
-
 }
 
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class CompletionsLimits {
+  final int maxTokens;
+  final int? contextWindowSize;
+
+  CompletionsLimits({required this.maxTokens, this.contextWindowSize});
+
+  factory CompletionsLimits.fromJson(Map<String, dynamic> json) =>
+      _$CompletionsLimitsFromJson(json);
+
+  Map<String, dynamic> toJson() => _$CompletionsLimitsToJson(this);
+}
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class TokenUsage {
   final int promptTokens;
   final int completionTokens;
   final int totalTokens;
+  final double? contextUsageRatio;
 
   TokenUsage({
     required this.promptTokens,
     required this.completionTokens,
-    required this.totalTokens
+    required this.totalTokens,
+    this.contextUsageRatio,
   });
 
-  factory TokenUsage.fromJson(Map<String, dynamic> json) => _$TokenUsageFromJson(json);
+  factory TokenUsage.fromJson(Map<String, dynamic> json) =>
+      _$TokenUsageFromJson(json);
 
   Map<String, dynamic> toJson() => _$TokenUsageToJson(this);
-
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class UserTask {
-  String? taskId;
   List<Content> content;
-  bool isChunk;
+  bool? isChunk;
+  String? extraSystemPrompt;
+  LLMConfig? llmConfig;
 
-  UserTask({this.taskId, required this.content, this.isChunk = true});
+  UserTask({
+    required this.content,
+    this.isChunk,
+    this.extraSystemPrompt,
+    this.llmConfig,
+  });
 
-  factory UserTask.fromJson(Map<String, dynamic> json) {
-    if(json["taskId"] != null && (json["taskId"] as String).length > 36) {
-      throw FormatException("taskId length should not more then 36");
-    }
-    return _$UserTaskFromJson(json);
-  }
+  factory UserTask.fromJson(Map<String, dynamic> json) =>
+      _$UserTaskFromJson(json);
 
   Map<String, dynamic> toJson() => _$UserTaskToJson(this);
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class EventToolReturn {
@@ -150,11 +171,11 @@ class EventToolReturn {
 
   EventToolReturn({required this.event, required this.toolReturn});
 
-  factory EventToolReturn.fromJson(Map<String, dynamic> json) => _$EventToolReturnFromJson(json);
+  factory EventToolReturn.fromJson(Map<String, dynamic> json) =>
+      _$EventToolReturnFromJson(json);
 
   Map<String, dynamic> toJson() => _$EventToolReturnToJson(this);
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class Dispatch {
@@ -163,13 +184,18 @@ class Dispatch {
   String name;
   List<Content> content;
 
-  Dispatch({required this.dispatchId, required this.agentId, required this.name, required this.content});
+  Dispatch({
+    required this.dispatchId,
+    required this.agentId,
+    required this.name,
+    required this.content,
+  });
 
-  factory Dispatch.fromJson(Map<String, dynamic> json) => _$DispatchFromJson(json);
+  factory Dispatch.fromJson(Map<String, dynamic> json) =>
+      _$DispatchFromJson(json);
 
   Map<String, dynamic> toJson() => _$DispatchToJson(this);
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class TaskStatus {
@@ -178,11 +204,11 @@ class TaskStatus {
 
   TaskStatus({required this.status, this.description});
 
-  factory TaskStatus.fromJson(Map<String, dynamic> json) => _$TaskStatusFromJson(json);
+  factory TaskStatus.fromJson(Map<String, dynamic> json) =>
+      _$TaskStatusFromJson(json);
 
   Map<String, dynamic> toJson() => _$TaskStatusToJson(this);
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class Reflection {
@@ -200,25 +226,31 @@ class Reflection {
     required this.maxCount,
   });
 
-  factory Reflection.fromJson(Map<String, dynamic> json) => _$ReflectionFromJson(json);
+  factory Reflection.fromJson(Map<String, dynamic> json) =>
+      _$ReflectionFromJson(json);
 
   Map<String, dynamic> toJson() => _$ReflectionToJson(this);
 }
 
-
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class MessageScore {
   List<Content> content;
-  String messageType; // AgentMessageType.text | AgentMessageType.imageUrl | AgentMessageType.dispatch | AgentMessageType.toolCalls | AgentMessageType.toolReturn | AgentMessageType.contentList | AgentMessageType.reflection | AgentMessageType.taskStatus | AgentMessageType.functionCall | AgentMessageType.reasoningContent | AgentMessageType.planning
+  String
+  messageType; // AgentMessageType.text | AgentMessageType.imageUrl | AgentMessageType.dispatch | AgentMessageType.toolCalls | AgentMessageType.toolReturn | AgentMessageType.contentList | AgentMessageType.reflection | AgentMessageType.taskStatus | AgentMessageType.functionCall | AgentMessageType.reasoningContent | AgentMessageType.planning
   String message;
   List<ReflectScore> reflectScoreList;
-  MessageScore({required this.content, required this.messageType, required this.message, required this.reflectScoreList});
+  MessageScore({
+    required this.content,
+    required this.messageType,
+    required this.message,
+    required this.reflectScoreList,
+  });
 
-  factory MessageScore.fromJson(Map<String, dynamic> json) => _$MessageScoreFromJson(json);
+  factory MessageScore.fromJson(Map<String, dynamic> json) =>
+      _$MessageScoreFromJson(json);
 
   Map<String, dynamic> toJson() => _$MessageScoreToJson(this);
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class ReflectScore {
@@ -226,7 +258,8 @@ class ReflectScore {
   String? description;
   ReflectScore({required this.score, this.description});
 
-  factory ReflectScore.fromJson(Map<String, dynamic> json) => _$ReflectScoreFromJson(json);
+  factory ReflectScore.fromJson(Map<String, dynamic> json) =>
+      _$ReflectScoreFromJson(json);
 
   Map<String, dynamic> toJson() => _$ReflectScoreToJson(this);
 }

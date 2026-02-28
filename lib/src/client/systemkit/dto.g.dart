@@ -28,3 +28,25 @@ Map<String, dynamic> _$RootInfoToJson(RootInfo instance) => <String, dynamic>{
   'baseUrl': instance.baseUrl,
   'endpoints': instance.endpoints,
 };
+
+Readiness _$ReadinessFromJson(Map<String, dynamic> json) => Readiness(
+  ready: json['ready'] as bool,
+  llmConfigured: json['llmConfigured'] as bool?,
+  llmServicesReady: json['llmServicesReady'] as bool?,
+  liteAgentReady: json['liteAgentReady'] as bool?,
+  openToolDaemonReady: json['openToolDaemonReady'] as bool?,
+  embeddingsReady: json['embeddingsReady'] as bool?,
+  reasons: (json['reasons'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+);
+
+Map<String, dynamic> _$ReadinessToJson(Readiness instance) => <String, dynamic>{
+  'ready': instance.ready,
+  'llmConfigured': ?instance.llmConfigured,
+  'llmServicesReady': ?instance.llmServicesReady,
+  'liteAgentReady': ?instance.liteAgentReady,
+  'openToolDaemonReady': ?instance.openToolDaemonReady,
+  'embeddingsReady': ?instance.embeddingsReady,
+  'reasons': ?instance.reasons,
+};

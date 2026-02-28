@@ -2,13 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../utils/api_client.dart';
 
-enum LlmKitServiceType {
-  text,
-  vision,
-  embedding,
-  tts,
-  asr,
-}
+enum LlmKitServiceType { text, vision, embedding, tts, asr }
 
 class LlmKitClient {
   LlmKitClient({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();

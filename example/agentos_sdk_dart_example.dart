@@ -2,10 +2,13 @@ import 'package:agentos_sdk/agentos_sdk.dart';
 
 Future<void> main(List<String> args) async {
   final bundleId = "com.mydomain.myapp";
+
   /// TODO: Replace with the model you want the agent to use.
   final llmModel = "qwen3-1.7b";
+
   /// TODO: Adjust the system prompt for your agent.
   final systemPrompt = "You are a helpful assistant.";
+
   /// TODO: Replace with the user message you want to send.
   final userMessage = "Hello.";
 
@@ -23,6 +26,7 @@ Future<void> main(List<String> args) async {
   print('Registered bundle (bundleId: $bundleId)');
 
   print('Subscribe AgentOS event...');
+
   /// HTTP:
   /// GET http://localhost:20261/appkit/subscribe
   /// Headers: Authorization: Bearer <token from registerBundle>
@@ -30,11 +34,10 @@ Future<void> main(List<String> args) async {
   await sdk.agentos.subscribe(_DemoEventHandler());
 
   final capability = Capability(
-    llmConfig: LLMConfig(
-      model: llmModel,
-    ),
+    llmConfig: LLMConfig(model: llmModel),
     systemPrompt: systemPrompt,
   );
+
   /// HTTP:
   /// POST http://localhost:20261/agentkit/initSession
   /// Headers: Authorization: Bearer <token from registerBundle>
@@ -50,9 +53,7 @@ Future<void> main(List<String> args) async {
   ///     "topP":1.0
   ///   }
   /// }
-  final session = await sdk.agentkit.initSession(
-    capability: capability
-  );
+  final session = await sdk.agentkit.initSession(capability: capability);
   final sessionId = session['sessionId']?.toString() ?? '';
   print('Session id: $sessionId');
 
@@ -66,11 +67,9 @@ Future<void> main(List<String> args) async {
     Session(sessionId: sessionId),
     UserTask(
       isChunk: true,
-      content: <Content>[
-        Content(type: ContentType.text, message: userMessage),
-      ],
+      content: <Content>[Content(type: ContentType.text, message: userMessage)],
     ),
-    _DemoMessageHandler()
+    _DemoMessageHandler(),
   );
 }
 
@@ -81,8 +80,8 @@ class _DemoEventHandler extends AgentOSEventHandler {
   }
 
   @override
-  Future<void> onAgents(Agents agents) async {
-    print('Agents event: ${agents.agents}');
+  Future<void> onCallApp(Call call) async {
+    print('CallApp event for ${call.bundleId}: ${call.contentList}');
   }
 
   @override
@@ -98,7 +97,36 @@ class _DemoEventHandler extends AgentOSEventHandler {
 
 class _DemoMessageHandler extends AgentMessageHandler {
   @override
-  Future<void> onChunk(String sessionId, AgentMessageChunk agentMessageChunk) async {
+  Future<void> onStreamFunctionCall(
+    String sessionId,
+    FunctionCall functionCall,
+    void Function(EventToolReturn) onToolReturn,
+  ) async {
+    onToolReturn(
+      EventToolReturn(
+        event: EventType.DATA,
+        toolReturn: ToolReturn(
+          id: functionCall.id,
+          result: <String, dynamic>{'progress': 'processing'},
+        ),
+      ),
+    );
+    onToolReturn(
+      EventToolReturn(
+        event: EventType.DONE,
+        toolReturn: ToolReturn(
+          id: functionCall.id,
+          result: <String, dynamic>{'ok': true},
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> onChunk(
+    String sessionId,
+    AgentMessageChunk agentMessageChunk,
+  ) async {
     print("sessionId: $sessionId; chunk: ${agentMessageChunk.toJson()}");
   }
 
@@ -116,5 +144,4 @@ class _DemoMessageHandler extends AgentMessageHandler {
   Future<void> onMessage(String sessionId, AgentMessage agentMessage) async {
     print("sessionId: $sessionId; message: ${agentMessage.toJson()}");
   }
-
 }

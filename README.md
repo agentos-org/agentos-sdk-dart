@@ -7,7 +7,7 @@ manually.
 ## Features
 
 - Root API: version check
-- AgentKit API: LiteAgent proxy endpoints (version, agent CRUD, session init,
+- AgentKit API: agent CRUD, session init,
   chat stream/simple, history, stop/clear, callbacks)
 - AppKit API: bundle registration and SSE subscription
 
@@ -24,6 +24,12 @@ Then run:
 
 ```bash
 dart pub get
+```
+
+Use a single public import:
+
+```dart
+import 'package:agentos_sdk/agentos_sdk.dart';
 ```
 
 ## Usage
@@ -50,8 +56,8 @@ class _DemoEventHandler extends AgentOSEventHandler {
   }
 
   @override
-  Future<void> onCall(Call call) async {
-    print('Call id: ${call.id}');
+  Future<void> onCallApp(Call call) async {
+    print('CallApp bundleId: ${call.bundleId}');
   }
 
   @override
@@ -66,20 +72,55 @@ class _DemoEventHandler extends AgentOSEventHandler {
 }
 ```
 
+### Configure Gateway Address
+
+```dart
+import 'package:agentos_sdk/agentos_sdk.dart';
+
+final sdk = AgentOSSDK(baseUrl: 'https://agentos.example.com');
+```
+
+### Configure Long-Running Stream Timeouts
+
+```dart
+import 'package:agentos_sdk/agentos_sdk.dart';
+
+final sdk = AgentOSSDK(
+  baseUrl: 'https://agentos.example.com',
+  connectTimeout: const Duration(seconds: 20),
+  receiveTimeout: Duration.zero, // keep long SSE streams alive
+);
+```
+
 ## API Reference
 
 ### AgentOSSDK
+
+Constructor:
+
+```dart
+AgentOSSDK({
+  String? baseUrl,
+  Duration? connectTimeout,
+  Duration? receiveTimeout,
+})
+```
+
+Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 
 | Property | Type | Description |
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit endpoints with internal token handling. |
 | `agentkit` | `AgentKitModule` | AgentKit endpoints with internal token handling. |
+| `dispose()` | `Future<void>` | Releases SDK resources and cancels active AppKit subscription. |
 
 ### AgentOSModule (`sdk.agentos`)
 
 | Method | Parameters | Description |
 | --- | --- | --- |
 | `getVersion()` | none | Fetches AgentOS service version. |
+| `getRoot()` | none | Fetches AgentOS gateway metadata. |
+| `getReady()` | none | Fetches AgentOS readiness status. |
 | `registerBundle({required String bundleId})` | `bundleId` | Registers an app bundle and stores the bearer token internally. |
 | `subscribe(AgentOSEventHandler handler)` | `handler` | Subscribes to AppKit SSE events using a handler implementation. |
 
@@ -106,9 +147,86 @@ class _DemoEventHandler extends AgentOSEventHandler {
 | Method | Parameters | Description |
 | --- | --- | --- |
 | `onWelcome(Welcome welcome)` | `welcome` | Receives `welcome` events. |
-| `onCall(Call call)` | `call` | Receives `call` events. |
+| `onCallApp(Call call)` | `call` | Receives `callApp` events. |
 | `onDone()` | none | Called when the SSE stream ends. |
 | `onError(Exception error)` | `error` | Called when the SSE stream errors. |
+
+### Subscription Lifecycle
+
+```dart
+import 'package:agentos_sdk/agentos_sdk.dart';
+
+final sdk = AgentOSSDK(baseUrl: 'https://agentos.example.com');
+
+await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+await sdk.agentos.subscribe(myHandler); // app start
+
+// app stop/dispose
+await sdk.dispose();
+```
+
+### AgentKit Schema Notes
+
+- `UserTask` supports passthrough fields:
+  - `extraSystemPrompt`
+  - `llmConfig`
+- `LLMConfig` supports:
+  - `contextWindowSize`
+  - `supportsToolCall` (read/write)
+  - `supportsReasoning` (read/write)
+  - read compatibility for `supportsToolCalling` and `supportsDeepThinking`
+- `Capability` supports:
+  - `llmConfigList`
+  - `toolReturnPackMinLength`
+- `AgentMessage.completions` supports `limits`:
+  - `maxTokens`
+  - `contextWindowSize`
+
+### AgentMessageHandler (Tool Callback)
+
+- Implement `onFunctionCall(...)` for non-stream tool calls. The SDK sends the
+  returned value via `/agentkit/callback`.
+- Implement `onStreamFunctionCall(...)` for stream tool calls. The SDK sends
+  each event via `/agentkit/streamCallback`.
+
+```dart
+class MyHandler extends AgentMessageHandler {
+  @override
+  Future<void> onStreamFunctionCall(
+    String sessionId,
+    FunctionCall functionCall,
+    void Function(EventToolReturn) onToolReturn,
+  ) async {
+    onToolReturn(
+      EventToolReturn(
+        event: EventType.DATA,
+        toolReturn: ToolReturn(
+          id: functionCall.id,
+          result: <String, dynamic>{'partial': '...'},
+        ),
+      ),
+    );
+    onToolReturn(
+      EventToolReturn(
+        event: EventType.DONE,
+        toolReturn: ToolReturn(
+          id: functionCall.id,
+          result: <String, dynamic>{'ok': true},
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> onMessage(String sessionId, AgentMessage agentMessage) async {}
+  @override
+  Future<void> onChunk(String sessionId, AgentMessageChunk chunk) async {}
+  @override
+  Future<void> onDone() async {}
+  @override
+  Future<void> onError(Exception error) async {}
+}
+```
 
 ## Token Handling
 
@@ -125,7 +243,9 @@ class _DemoEventHandler extends AgentOSEventHandler {
   require a token.
 - `AgentOSSDK` exposes module properties (`agentos`, `agentkit`) for
   clearer separation of API areas.
-- The server proxies LiteAgent endpoints under `/agentkit/*`.
+- AgentKit endpoints are exposed under `/agentkit/*`.
+- External integrations should use only `package:agentos_sdk/agentos_sdk.dart`
+  and avoid importing `package:agentos_sdk/src/...`.
 
 ## Development
 

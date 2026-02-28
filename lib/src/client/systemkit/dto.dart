@@ -8,7 +8,8 @@ class Version {
 
   Version({required this.version});
 
-  factory Version.fromJson(Map<String, dynamic> json) => _$VersionFromJson(json);
+  factory Version.fromJson(Map<String, dynamic> json) =>
+      _$VersionFromJson(json);
 
   Map<String, dynamic> toJson() => _$VersionToJson(this);
 }
@@ -33,4 +34,30 @@ class RootInfo {
       _$RootInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$RootInfoToJson(this);
+}
+
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
+class Readiness {
+  bool ready;
+  bool? llmConfigured;
+  bool? llmServicesReady;
+  bool? liteAgentReady;
+  bool? openToolDaemonReady;
+  bool? embeddingsReady;
+  List<String>? reasons;
+
+  Readiness({
+    required this.ready,
+    this.llmConfigured,
+    this.llmServicesReady,
+    this.liteAgentReady,
+    this.openToolDaemonReady,
+    this.embeddingsReady,
+    this.reasons,
+  });
+
+  factory Readiness.fromJson(Map<String, dynamic> json) =>
+      _$ReadinessFromJson(json);
+
+  Map<String, dynamic> toJson() => _$ReadinessToJson(this);
 }

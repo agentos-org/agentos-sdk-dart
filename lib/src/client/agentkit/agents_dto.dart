@@ -8,11 +8,11 @@ class AgentId {
   String agentId;
   AgentId({required this.agentId});
 
-  factory AgentId.fromJson(Map<String, dynamic> json) => _$AgentIdFromJson(json);
+  factory AgentId.fromJson(Map<String, dynamic> json) =>
+      _$AgentIdFromJson(json);
 
   Map<String, dynamic> toJson() => _$AgentIdToJson(this);
 }
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class Agent {
@@ -25,17 +25,19 @@ class Agent {
   Map<String, dynamic> toJson() => _$AgentToJson(this);
 }
 
-
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class AgentInfo extends AgentId {
   String name;
   Capability capability;
-  AgentInfo({required super.agentId, required this.name, required this.capability});
+  AgentInfo({
+    required super.agentId,
+    required this.name,
+    required this.capability,
+  });
 
-  factory AgentInfo.fromJson(Map<String, dynamic> json) => _$AgentInfoFromJson(json);
+  factory AgentInfo.fromJson(Map<String, dynamic> json) =>
+      _$AgentInfoFromJson(json);
 
   @override
   Map<String, dynamic> toJson() => _$AgentInfoToJson(this);
 }
-
-

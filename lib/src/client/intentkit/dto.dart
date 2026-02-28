@@ -45,10 +45,7 @@ class IntentKitSubmitIntentRequest {
   String source;
   IntentCandidate intent;
 
-  IntentKitSubmitIntentRequest({
-    this.source = 'api',
-    required this.intent,
-  });
+  IntentKitSubmitIntentRequest({this.source = 'api', required this.intent});
 
   factory IntentKitSubmitIntentRequest.fromJson(Map<String, dynamic> json) =>
       _$IntentKitSubmitIntentRequestFromJson(json);
@@ -61,10 +58,7 @@ class IntentKitConfirmJobRequest {
   String jobId;
   bool confirmed;
 
-  IntentKitConfirmJobRequest({
-    required this.jobId,
-    required this.confirmed,
-  });
+  IntentKitConfirmJobRequest({required this.jobId, required this.confirmed});
 
   factory IntentKitConfirmJobRequest.fromJson(Map<String, dynamic> json) =>
       _$IntentKitConfirmJobRequestFromJson(json);
@@ -86,8 +80,7 @@ class IntentKitSuggestNextActionRequest {
 
   factory IntentKitSuggestNextActionRequest.fromJson(
     Map<String, dynamic> json,
-  ) =>
-      _$IntentKitSuggestNextActionRequestFromJson(json);
+  ) => _$IntentKitSuggestNextActionRequestFromJson(json);
 
   Map<String, dynamic> toJson() =>
       _$IntentKitSuggestNextActionRequestToJson(this);
@@ -114,8 +107,7 @@ class IntentKitSuggestNextActionResponse {
 
   factory IntentKitSuggestNextActionResponse.fromJson(
     Map<String, dynamic> json,
-  ) =>
-      _$IntentKitSuggestNextActionResponseFromJson(json);
+  ) => _$IntentKitSuggestNextActionResponseFromJson(json);
 
   Map<String, dynamic> toJson() =>
       _$IntentKitSuggestNextActionResponseToJson(this);

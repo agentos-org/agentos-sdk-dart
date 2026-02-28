@@ -3,8 +3,15 @@ import 'sessions_dto.dart';
 
 part 'capability_dto.g.dart';
 
-enum ApiKeyType { basic, bearer }
+Object? _readSupportsToolCalling(Map json, String key) {
+  return json['supportsToolCall'] ?? json['supportsToolCalling'];
+}
 
+Object? _readSupportsDeepThinking(Map json, String key) {
+  return json['supportsReasoning'] ?? json['supportsDeepThinking'];
+}
+
+enum ApiKeyType { basic, bearer, original }
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class ApiKey {
@@ -18,7 +25,6 @@ class ApiKey {
   Map<String, dynamic> toJson() => _$ApiKeyToJson(this);
 }
 
-
 enum Protocol {
   openapi,
   openmodbus,
@@ -29,13 +35,7 @@ enum Protocol {
   serialport,
 }
 
-
-enum PipelineStrategyType {
-  parallel,
-  serial,
-  reject,
-}
-
+enum PipelineStrategyType { parallel, serial, reject }
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class OpenSpec {
@@ -53,11 +53,11 @@ class OpenSpec {
     this.openToolId,
   });
 
-  factory OpenSpec.fromJson(Map<String, dynamic> json) => _$OpenSpecFromJson(json);
+  factory OpenSpec.fromJson(Map<String, dynamic> json) =>
+      _$OpenSpecFromJson(json);
 
   Map<String, dynamic> toJson() => _$OpenSpecToJson(this);
 }
-
 
 @JsonSerializable()
 class CallbackOpenTool {
@@ -66,11 +66,11 @@ class CallbackOpenTool {
 
   CallbackOpenTool({required this.opentool, this.timeout});
 
-  factory CallbackOpenTool.fromJson(Map<String, dynamic> json) => _$CallbackOpenToolFromJson(json);
+  factory CallbackOpenTool.fromJson(Map<String, dynamic> json) =>
+      _$CallbackOpenToolFromJson(json);
 
   Map<String, dynamic> toJson() => _$CallbackOpenToolToJson(this);
 }
-
 
 @JsonSerializable()
 class LLMConfig {
@@ -79,9 +79,12 @@ class LLMConfig {
   String model;
   double temperature;
   int maxTokens;
+  int? contextWindowSize;
   double topP;
-  bool? supportsToolCalling;
-  bool? supportsDeepThinking;
+  @JsonKey(name: 'supportsToolCall', readValue: _readSupportsToolCalling)
+  bool supportsToolCalling;
+  @JsonKey(name: 'supportsReasoning', readValue: _readSupportsDeepThinking)
+  bool supportsDeepThinking;
 
   LLMConfig({
     this.baseUrl = "http://localhost:8888/llmkit/text",
@@ -89,12 +92,14 @@ class LLMConfig {
     required this.model,
     this.temperature = 0.0,
     this.maxTokens = 4096,
+    this.contextWindowSize,
     this.topP = 1.0,
-    this.supportsToolCalling,
-    this.supportsDeepThinking,
+    this.supportsToolCalling = true,
+    this.supportsDeepThinking = false,
   });
 
-  factory LLMConfig.fromJson(Map<String, dynamic> json) => _$LLMConfigFromJson(json);
+  factory LLMConfig.fromJson(Map<String, dynamic> json) =>
+      _$LLMConfigFromJson(json);
 
   Map<String, dynamic> toJson() => _$LLMConfigToJson(this);
 }
@@ -106,23 +111,21 @@ class ReflectPrompt {
 
   ReflectPrompt({required this.llmConfig, required this.prompt});
 
-  factory ReflectPrompt.fromJson(Map<String, dynamic> json) => _$ReflectPromptFromJson(json);
+  factory ReflectPrompt.fromJson(Map<String, dynamic> json) =>
+      _$ReflectPromptFromJson(json);
 
   Map<String, dynamic> toJson() => _$ReflectPromptToJson(this);
 }
 
-
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class SimpleCapability {
-  LLMConfig llmConfig;
+  LLMConfig? llmConfig;
   String systemPrompt;
 
-  SimpleCapability({
-    required this.llmConfig,
-    required this.systemPrompt
-  });
+  SimpleCapability({this.llmConfig, required this.systemPrompt});
 
-  factory SimpleCapability.fromJson(Map<String, dynamic> json) => _$SimpleCapabilityFromJson(json);
+  factory SimpleCapability.fromJson(Map<String, dynamic> json) =>
+      _$SimpleCapabilityFromJson(json);
 
   Map<String, dynamic> toJson() => _$SimpleCapabilityToJson(this);
 }
@@ -139,29 +142,30 @@ class Capability extends SimpleCapability {
   bool? auto;
   List<LLMConfig>? llmConfigList;
   bool? enableThinking;
+  int? toolReturnPackMinLength;
 
   Capability({
-    required super.llmConfig,
+    super.llmConfig,
     required super.systemPrompt,
     this.openSpecList,
     this.callbackOpenTool,
     this.sessionList,
     this.reflectPromptList,
     this.timeoutSeconds = 3600,
-    this.taskPipelineStrategy  = PipelineStrategyType.parallel,
+    this.taskPipelineStrategy = PipelineStrategyType.parallel,
     this.toolPipelineStrategy,
     this.auto,
     this.llmConfigList,
     this.enableThinking,
+    this.toolReturnPackMinLength,
   });
 
-  factory Capability.fromJson(Map<String, dynamic> json) => _$CapabilityFromJson(json);
+  factory Capability.fromJson(Map<String, dynamic> json) =>
+      _$CapabilityFromJson(json);
 
   @override
   Map<String, dynamic> toJson() => _$CapabilityToJson(this);
 }
-
-
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class OpenToolInfo {
@@ -170,7 +174,8 @@ class OpenToolInfo {
 
   OpenToolInfo({required this.openToolId, required this.description});
 
-  factory OpenToolInfo.fromJson(Map<String, dynamic> json) => _$OpenToolInfoFromJson(json);
+  factory OpenToolInfo.fromJson(Map<String, dynamic> json) =>
+      _$OpenToolInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$OpenToolInfoToJson(this);
 }

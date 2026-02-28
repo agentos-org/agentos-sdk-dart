@@ -7,7 +7,6 @@ class ContentType {
   static final String imageUrl = "imageUrl";
 }
 
-
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class Content {
   String type;
@@ -15,8 +14,8 @@ class Content {
 
   Content({required this.type, required this.message});
 
-  factory Content.fromJson(Map<String, dynamic> json) => _$ContentFromJson(json);
+  factory Content.fromJson(Map<String, dynamic> json) =>
+      _$ContentFromJson(json);
 
   Map<String, dynamic> toJson() => _$ContentToJson(this);
 }
-

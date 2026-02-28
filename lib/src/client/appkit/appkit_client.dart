@@ -18,7 +18,9 @@ class AppKitClient {
       '/appkit/register',
       data: bundle.toJson(),
     );
-    return AccessToken.fromJson(Map<String, dynamic>.from(response.data as Map));
+    return AccessToken.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
   }
 
   Future<Stream<AgentOSEvent>> subscribe({required String bearerToken}) async {
@@ -59,7 +61,10 @@ class AppKitClient {
             if (line.isEmpty) {
               if (currentEvent != null && currentData != null) {
                 controller.add(
-                  AgentOSEvent(agentosEventType: currentEvent!, data: currentData!),
+                  AgentOSEvent(
+                    agentosEventType: currentEvent!,
+                    data: currentData!,
+                  ),
                 );
               }
               currentEvent = null;

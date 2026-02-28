@@ -12,7 +12,8 @@ import 'sessions_dto.dart';
 import '../systemkit/dto.dart';
 
 class AgentKitClient {
-  AgentKitClient({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
+  AgentKitClient({ApiClient? apiClient})
+    : _apiClient = apiClient ?? ApiClient();
 
   final ApiClient _apiClient;
 
@@ -112,10 +113,7 @@ class AgentKitClient {
           '/agentkit/chat',
           data: userTask.toJson(),
           queryParameters: Session(sessionId: sessionId).toJson(),
-          options: _authOptions(
-            bearerToken,
-            responseType: ResponseType.stream,
-          ),
+          options: _authOptions(bearerToken, responseType: ResponseType.stream),
         );
     final ResponseBody? body = response.data;
     if (body == null) {
@@ -157,7 +155,10 @@ class AgentKitClient {
   }) async {
     final Response<dynamic> response = await _apiClient.dio.get(
       '/agentkit/stop',
-      queryParameters: SessionTask(sessionId: sessionId, taskId: taskId).toJson(),
+      queryParameters: SessionTask(
+        sessionId: sessionId,
+        taskId: taskId,
+      ).toJson(),
       options: _authOptions(bearerToken),
     );
     return _asJsonMap(response.data);
@@ -260,8 +261,9 @@ class AgentKitClient {
             }
             if (line.isEmpty) {
               if (currentEvent != null && currentData != null) {
+                final eventType = _normalizeAgentEventType(currentEvent!);
                 controller.add(
-                  AgentEvent(agentEventType: currentEvent!, data: currentData!),
+                  AgentEvent(agentEventType: eventType, data: currentData!),
                 );
               }
               currentEvent = null;
@@ -273,5 +275,15 @@ class AgentKitClient {
         );
 
     return controller.stream;
+  }
+
+  String _normalizeAgentEventType(String eventType) {
+    if (eventType == AgentEventType.agentMessage) {
+      return AgentEventType.message;
+    }
+    if (eventType == AgentEventType.agentMessageChunk) {
+      return AgentEventType.chunk;
+    }
+    return eventType;
   }
 }

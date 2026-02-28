@@ -6,7 +6,8 @@ import '../../utils/api_client.dart';
 import 'dto.dart';
 
 class IntentKitClient {
-  IntentKitClient({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
+  IntentKitClient({ApiClient? apiClient})
+    : _apiClient = apiClient ?? ApiClient();
 
   final ApiClient _apiClient;
 

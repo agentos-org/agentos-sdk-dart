@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -22,7 +23,17 @@ import '../toolkit/toolkit_client.dart';
 
 /// Unified AgentOS SDK that manages Root, AgentKit, and AppKit APIs.
 class AgentOSSDK {
-  AgentOSSDK() : _apiClient = ApiClient() {
+  AgentOSSDK({
+    String? baseUrl,
+    Duration? connectTimeout,
+    Duration? receiveTimeout,
+    ApiClient? apiClient,
+  }) : _apiClient = _buildApiClient(
+         baseUrl: baseUrl,
+         connectTimeout: connectTimeout,
+         receiveTimeout: receiveTimeout,
+         apiClient: apiClient,
+       ) {
     _systemKit = SystemKitClient(apiClient: _apiClient);
     _agentKit = AgentKitClient(apiClient: _apiClient);
     _appKit = AppKitClient(apiClient: _apiClient);
@@ -44,12 +55,57 @@ class AgentOSSDK {
   late final LlmKitClient _llmKit;
   late final ToolKitClient _toolKit;
   String? _token;
+  StreamSubscription<AgentOSEvent>? _agentOsSubscription;
+  AgentOSEventHandler? _agentOsEventHandler;
 
   late final AgentOSModule agentos;
   late final AgentKitModule agentkit;
   late final IntentKitModule intentkit;
   late final LlmKitModule llmkit;
   late final ToolKitModule toolkit;
+
+  static ApiClient _buildApiClient({
+    String? baseUrl,
+    Duration? connectTimeout,
+    Duration? receiveTimeout,
+    ApiClient? apiClient,
+  }) {
+    if (apiClient != null) {
+      if (connectTimeout != null) {
+        apiClient.dio.options.connectTimeout = connectTimeout;
+      }
+      if (receiveTimeout != null) {
+        apiClient.dio.options.receiveTimeout = receiveTimeout;
+      }
+      if (baseUrl != null && baseUrl.isNotEmpty) {
+        apiClient.dio.options.baseUrl = baseUrl;
+      }
+      return apiClient;
+    }
+    final effectiveConnectTimeout =
+        connectTimeout ?? const Duration(seconds: 5);
+    final effectiveReceiveTimeout =
+        receiveTimeout ?? const Duration(seconds: 10);
+    if (baseUrl != null && baseUrl.isNotEmpty) {
+      return ApiClient(
+        baseOptions: BaseOptions(
+          baseUrl: baseUrl,
+          connectTimeout: effectiveConnectTimeout,
+          receiveTimeout: effectiveReceiveTimeout,
+        ),
+      );
+    }
+    if (connectTimeout != null || receiveTimeout != null) {
+      return ApiClient(
+        baseOptions: BaseOptions(
+          baseUrl: 'http://localhost:20261',
+          connectTimeout: effectiveConnectTimeout,
+          receiveTimeout: effectiveReceiveTimeout,
+        ),
+      );
+    }
+    return ApiClient();
+  }
 
   Map<String, dynamic> _asJsonMap(String data) {
     final decoded = jsonDecode(data);
@@ -59,7 +115,9 @@ class AgentOSSDK {
     if (decoded is Map) {
       return Map<String, dynamic>.from(decoded);
     }
-    throw FormatException('Expected JSON object but got ${decoded.runtimeType}');
+    throw FormatException(
+      'Expected JSON object but got ${decoded.runtimeType}',
+    );
   }
 
   String _requireToken() {
@@ -70,6 +128,21 @@ class AgentOSSDK {
       );
     }
     return token;
+  }
+
+  bool get isSubscribed => _agentOsSubscription != null;
+
+  Future<void> _cancelAgentOsSubscription() async {
+    final subscription = _agentOsSubscription;
+    _agentOsSubscription = null;
+    if (subscription != null) {
+      await subscription.cancel();
+    }
+  }
+
+  Future<void> dispose() async {
+    await _cancelAgentOsSubscription();
+    _agentOsEventHandler = null;
   }
 }
 
@@ -84,6 +157,9 @@ class AgentOSModule {
   /// Fetches the AgentOS gateway metadata.
   Future<RootInfo> getRoot() => _client._systemKit.getRoot();
 
+  /// Fetches the AgentOS readiness status.
+  Future<Readiness> getReady() => _client._systemKit.getReady();
+
   /// Registers an app bundle and stores the returned bearer token internally.
   Future<void> registerBundle({required String bundleId}) async {
     final info = await _client._appKit.registerBundle(bundleId: bundleId);
@@ -92,41 +168,57 @@ class AgentOSModule {
 
   /// Subscribes to AppKit SSE events using a handler implementation.
   Future<void> subscribe(AgentOSEventHandler handler) async {
+    _client._agentOsEventHandler = handler;
+    if (_client._agentOsSubscription != null) {
+      return;
+    }
     final stream = await _client._appKit.subscribe(
       bearerToken: _client._requireToken(),
     );
-    stream.listen(
+    _client._agentOsSubscription = stream.listen(
       (event) async {
+        final currentHandler = _client._agentOsEventHandler;
+        if (currentHandler == null) {
+          return;
+        }
         try {
           if (event.agentosEventType == AgentOSEventType.welcome) {
             final payload = _client._asJsonMap(event.data);
-            await handler.onWelcome(Welcome.fromJson(payload));
-          } else if (event.agentosEventType == AgentOSEventType.agents) {
-            final payload = _client._asJsonMap(event.data);
-            await handler.onAgents(Agents.fromJson(payload));
+            await currentHandler.onWelcome(Welcome.fromJson(payload));
           } else if (event.agentosEventType == AgentOSEventType.error) {
             final payload = _client._asJsonMap(event.data);
             final error = AppKitError.fromJson(payload);
-            await handler.onError(Exception(error.error));
-          } else if (event.agentosEventType == AgentOSEventType.call) {
+            await currentHandler.onError(Exception(error.error));
+          } else if (event.agentosEventType == AgentOSEventType.callApp) {
             final payload = _client._asJsonMap(event.data);
-            await handler.onCall(Call.fromJson(payload));
+            await currentHandler.onCallApp(Call.fromJson(payload));
           } else {
             throw Exception('Unknown AgentOS event: ${event.agentosEventType}');
           }
         } catch (error) {
           final exception = error is Exception
               ? error
-              : Exception(error?.toString() ?? 'Unknown error');
-          await handler.onError(exception);
+              : Exception(error.toString());
+          await currentHandler.onError(exception);
         }
       },
-      onDone: () => handler.onDone(),
+      onDone: () async {
+        _client._agentOsSubscription = null;
+        final currentHandler = _client._agentOsEventHandler;
+        if (currentHandler != null) {
+          await currentHandler.onDone();
+        }
+      },
       onError: (error) {
+        _client._agentOsSubscription = null;
+        final currentHandler = _client._agentOsEventHandler;
+        if (currentHandler == null) {
+          return;
+        }
         final exception = error is Exception
             ? error
-            : Exception(error?.toString() ?? 'Unknown error');
-        handler.onError(exception);
+            : Exception(error.toString());
+        currentHandler.onError(exception);
       },
     );
   }
@@ -139,9 +231,7 @@ class AgentKitModule {
 
   /// Fetches the AgentKit service version.
   Future<Version> getVersion() {
-    return _client._agentKit.getVersion(
-      bearerToken: _client._requireToken(),
-    );
+    return _client._agentKit.getVersion(bearerToken: _client._requireToken());
   }
 
   /// Retrieves an agent by agentId.
@@ -229,17 +319,34 @@ class AgentKitModule {
             agentMessageChunk,
           );
         } else if (event.agentEventType == AgentEventType.functionCall) {
-          final agentMessage = AgentMessage.fromJson(
-            jsonDecode(event.data) as Map<String, dynamic>,
-          );
-          final functionCall = FunctionCall.fromJson(
-            agentMessage.content as Map<String, dynamic>,
-          );
-          final toolReturn = await agentMessageHandler.onFunctionCall(
-            session.sessionId,
-            functionCall,
-          );
-          await _callback(session, toolReturn);
+          final payload = _client._asJsonMap(event.data);
+          final functionCallJson = payload['functionCall'];
+          if (functionCallJson is! Map) {
+            throw FormatException(
+              'Invalid functionCall event payload: missing functionCall object.',
+            );
+          }
+          final functionCallMap = Map<String, dynamic>.from(functionCallJson);
+          final functionCall = FunctionCall.fromJson(functionCallMap);
+          if (_isStreamFunctionCall(payload, functionCallMap)) {
+            final pendingCallbacks = <Future<void>>[];
+            await agentMessageHandler.onStreamFunctionCall(
+              session.sessionId,
+              functionCall,
+              (eventToolReturn) {
+                pendingCallbacks.add(_streamCallback(session, eventToolReturn));
+              },
+            );
+            for (final pending in pendingCallbacks) {
+              await pending;
+            }
+          } else {
+            final toolReturn = await agentMessageHandler.onFunctionCall(
+              session.sessionId,
+              functionCall,
+            );
+            await _callback(session, toolReturn);
+          }
         }
       },
       onDone: agentMessageHandler.onDone,
@@ -323,6 +430,32 @@ class AgentKitModule {
       toolReturn: toolReturn,
     );
   }
+
+  Future<void> _streamCallback(
+    Session session,
+    EventToolReturn eventToolReturn,
+  ) async {
+    await _client._agentKit.streamCallback(
+      bearerToken: _client._requireToken(),
+      sessionId: session.sessionId,
+      eventToolReturn: eventToolReturn,
+    );
+  }
+
+  bool _isStreamFunctionCall(
+    Map<String, dynamic> payload,
+    Map<String, dynamic> functionCall,
+  ) {
+    return _readBoolFlag(payload, 'stream') ||
+        _readBoolFlag(functionCall, 'stream') ||
+        _readBoolFlag(payload, 'isStream') ||
+        _readBoolFlag(functionCall, 'isStream');
+  }
+
+  bool _readBoolFlag(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    return value is bool && value;
+  }
 }
 
 class IntentKitModule {
@@ -346,9 +479,7 @@ class IntentKitModule {
     );
   }
 
-  Future<IntentKitJobHandle> confirmJob(
-    IntentKitConfirmJobRequest request,
-  ) {
+  Future<IntentKitJobHandle> confirmJob(IntentKitConfirmJobRequest request) {
     return _client._intentKit.confirmJob(
       bearerToken: _client._requireToken(),
       request: request,

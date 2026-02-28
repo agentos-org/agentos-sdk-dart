@@ -19,6 +19,7 @@ Map<String, dynamic> _$ApiKeyToJson(ApiKey instance) => <String, dynamic>{
 const _$ApiKeyTypeEnumMap = {
   ApiKeyType.basic: 'basic',
   ApiKeyType.bearer: 'bearer',
+  ApiKeyType.original: 'original',
 };
 
 OpenSpec _$OpenSpecFromJson(Map<String, dynamic> json) => OpenSpec(
@@ -67,9 +68,12 @@ LLMConfig _$LLMConfigFromJson(Map<String, dynamic> json) => LLMConfig(
   model: json['model'] as String,
   temperature: (json['temperature'] as num?)?.toDouble() ?? 0.0,
   maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 4096,
+  contextWindowSize: (json['contextWindowSize'] as num?)?.toInt(),
   topP: (json['topP'] as num?)?.toDouble() ?? 1.0,
-  supportsToolCalling: json['supportsToolCalling'] as bool?,
-  supportsDeepThinking: json['supportsDeepThinking'] as bool?,
+  supportsToolCalling:
+      _readSupportsToolCalling(json, 'supportsToolCall') as bool? ?? true,
+  supportsDeepThinking:
+      _readSupportsDeepThinking(json, 'supportsReasoning') as bool? ?? false,
 );
 
 Map<String, dynamic> _$LLMConfigToJson(LLMConfig instance) => <String, dynamic>{
@@ -78,9 +82,10 @@ Map<String, dynamic> _$LLMConfigToJson(LLMConfig instance) => <String, dynamic>{
   'model': instance.model,
   'temperature': instance.temperature,
   'maxTokens': instance.maxTokens,
+  'contextWindowSize': instance.contextWindowSize,
   'topP': instance.topP,
-  'supportsToolCalling': instance.supportsToolCalling,
-  'supportsDeepThinking': instance.supportsDeepThinking,
+  'supportsToolCall': instance.supportsToolCalling,
+  'supportsReasoning': instance.supportsDeepThinking,
 };
 
 ReflectPrompt _$ReflectPromptFromJson(Map<String, dynamic> json) =>
@@ -97,18 +102,22 @@ Map<String, dynamic> _$ReflectPromptToJson(ReflectPrompt instance) =>
 
 SimpleCapability _$SimpleCapabilityFromJson(Map<String, dynamic> json) =>
     SimpleCapability(
-      llmConfig: LLMConfig.fromJson(json['llmConfig'] as Map<String, dynamic>),
+      llmConfig: json['llmConfig'] == null
+          ? null
+          : LLMConfig.fromJson(json['llmConfig'] as Map<String, dynamic>),
       systemPrompt: json['systemPrompt'] as String,
     );
 
 Map<String, dynamic> _$SimpleCapabilityToJson(SimpleCapability instance) =>
     <String, dynamic>{
-      'llmConfig': instance.llmConfig.toJson(),
+      'llmConfig': ?instance.llmConfig?.toJson(),
       'systemPrompt': instance.systemPrompt,
     };
 
 Capability _$CapabilityFromJson(Map<String, dynamic> json) => Capability(
-  llmConfig: LLMConfig.fromJson(json['llmConfig'] as Map<String, dynamic>),
+  llmConfig: json['llmConfig'] == null
+      ? null
+      : LLMConfig.fromJson(json['llmConfig'] as Map<String, dynamic>),
   systemPrompt: json['systemPrompt'] as String,
   openSpecList: (json['openSpecList'] as List<dynamic>?)
       ?.map((e) => OpenSpec.fromJson(e as Map<String, dynamic>))
@@ -140,11 +149,12 @@ Capability _$CapabilityFromJson(Map<String, dynamic> json) => Capability(
       ?.map((e) => LLMConfig.fromJson(e as Map<String, dynamic>))
       .toList(),
   enableThinking: json['enableThinking'] as bool?,
+  toolReturnPackMinLength: (json['toolReturnPackMinLength'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$CapabilityToJson(Capability instance) =>
     <String, dynamic>{
-      'llmConfig': instance.llmConfig.toJson(),
+      'llmConfig': ?instance.llmConfig?.toJson(),
       'systemPrompt': instance.systemPrompt,
       'openSpecList': ?instance.openSpecList?.map((e) => e.toJson()).toList(),
       'callbackOpenTool': ?instance.callbackOpenTool?.toJson(),
@@ -160,6 +170,7 @@ Map<String, dynamic> _$CapabilityToJson(Capability instance) =>
       'auto': ?instance.auto,
       'llmConfigList': ?instance.llmConfigList?.map((e) => e.toJson()).toList(),
       'enableThinking': ?instance.enableThinking,
+      'toolReturnPackMinLength': ?instance.toolReturnPackMinLength,
     };
 
 const _$PipelineStrategyTypeEnumMap = {

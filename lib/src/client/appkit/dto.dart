@@ -9,11 +9,11 @@ class AppBundle {
 
   AppBundle({required this.bundleId});
 
-  factory AppBundle.fromJson(Map<String, dynamic> json) => _$AppBundleFromJson(json);
+  factory AppBundle.fromJson(Map<String, dynamic> json) =>
+      _$AppBundleFromJson(json);
 
   Map<String, dynamic> toJson() => _$AppBundleToJson(this);
 }
-
 
 @JsonSerializable()
 class AccessToken {
@@ -21,70 +21,71 @@ class AccessToken {
 
   AccessToken({required this.token});
 
-  factory AccessToken.fromJson(Map<String, dynamic> json) => _$AccessTokenFromJson(json);
+  factory AccessToken.fromJson(Map<String, dynamic> json) =>
+      _$AccessTokenFromJson(json);
 
   Map<String, dynamic> toJson() => _$AccessTokenToJson(this);
 }
 
-
 class AgentOSEventType {
   static const String welcome = "welcome";
-  static const String agents = "agents";
   static const String error = "error";
-  static const String call = "call";
+  static const String callApp = "callApp";
 }
-
 
 @JsonSerializable()
 class AgentOSEvent {
-  String agentosEventType; // AgentOSEventType.welcome | AgentOSEventType.call
+  String
+  agentosEventType; // AgentOSEventType.welcome | AgentOSEventType.callApp
   String data;
 
   AgentOSEvent({required this.agentosEventType, required this.data});
 
-  factory AgentOSEvent.fromJson(Map<String, dynamic> json) => _$AgentOSEventFromJson(json);
+  factory AgentOSEvent.fromJson(Map<String, dynamic> json) =>
+      _$AgentOSEventFromJson(json);
 
   Map<String, dynamic> toJson() => _$AgentOSEventToJson(this);
 }
 
-
 @JsonSerializable()
 class Welcome {
   String bundleId;
-  String? token;
 
-  Welcome({required this.bundleId, this.token});
+  Welcome({required this.bundleId});
 
-  factory Welcome.fromJson(Map<String, dynamic> json) => _$WelcomeFromJson(json);
+  factory Welcome.fromJson(Map<String, dynamic> json) =>
+      _$WelcomeFromJson(json);
 
   Map<String, dynamic> toJson() => _$WelcomeToJson(this);
 }
 
-
-@JsonSerializable()
 class Call {
-  String id;
-  String from;  // "agentos" | other App bundleId
+  String bundleId;
   List<Content> contentList;
 
-  Call({required this.id, required this.from, required this.contentList});
+  Call({required this.bundleId, required this.contentList});
 
-  factory Call.fromJson(Map<String, dynamic> json) => _$CallFromJson(json);
+  factory Call.fromJson(Map<String, dynamic> json) {
+    final dynamic rawContentList = json['contentList'];
+    final List<dynamic> items = rawContentList is List
+        ? rawContentList
+        : const <dynamic>[];
+    return Call(
+      bundleId: (json['bundleId'] ?? '').toString(),
+      contentList: items
+          .whereType<Map>()
+          .map((item) => Content.fromJson(Map<String, dynamic>.from(item)))
+          .toList(),
+    );
+  }
 
-  Map<String, dynamic> toJson() => _$CallToJson(this);
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'bundleId': bundleId,
+    'contentList': contentList.map((item) => item.toJson()).toList(),
+  };
 }
 
-@JsonSerializable()
-class Agents {
-  String bundleId;
-  List<String> agents;
-
-  Agents({required this.bundleId, required this.agents});
-
-  factory Agents.fromJson(Map<String, dynamic> json) => _$AgentsFromJson(json);
-
-  Map<String, dynamic> toJson() => _$AgentsToJson(this);
-}
+typedef CallAppEvent = Call;
 
 @JsonSerializable()
 class AppKitError {
@@ -97,4 +98,3 @@ class AppKitError {
 
   Map<String, dynamic> toJson() => _$AppKitErrorToJson(this);
 }
-

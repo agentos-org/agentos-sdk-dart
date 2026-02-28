@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:agentos_sdk/agentos_sdk.dart';
 import 'package:agentos_sdk/src/client/agentkit/agentkit_client.dart';
@@ -9,6 +12,136 @@ import 'package:dio/dio.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('DTO', () {
+    test('parses and serializes token usage contextUsageRatio', () {
+      final usage = TokenUsage.fromJson(<String, dynamic>{
+        'promptTokens': 10,
+        'completionTokens': 20,
+        'totalTokens': 30,
+        'contextUsageRatio': 0.42,
+      });
+
+      expect(usage.contextUsageRatio, equals(0.42));
+      expect(usage.toJson()['contextUsageRatio'], equals(0.42));
+    });
+
+    test('parses user task passthrough fields for liteagent', () {
+      final task = UserTask.fromJson(<String, dynamic>{
+        'content': <Map<String, dynamic>>[
+          <String, dynamic>{'type': 'text', 'message': 'hello'},
+        ],
+        'isChunk': true,
+        'extraSystemPrompt': 'safety first',
+        'llmConfig': <String, dynamic>{
+          'baseUrl': 'http://127.0.0.1:9527/v1',
+          'apiKey': 'sk-test',
+          'model': 'qwen-max',
+          'supportsToolCall': true,
+          'supportsReasoning': true,
+          'contextWindowSize': 32768,
+        },
+      });
+
+      expect(task.extraSystemPrompt, equals('safety first'));
+      expect(task.llmConfig, isNotNull);
+      expect(task.llmConfig!.supportsToolCalling, isTrue);
+      expect(task.llmConfig!.supportsDeepThinking, isTrue);
+      expect(task.llmConfig!.contextWindowSize, equals(32768));
+    });
+
+    test('parses completions limits passthrough fields for liteagent', () {
+      final message = AgentMessage.fromJson(<String, dynamic>{
+        'sessionId': 's1',
+        'taskId': 't1',
+        'role': 'assistant',
+        'to': 'client',
+        'type': 'text',
+        'content': 'ok',
+        'createTime': DateTime.utc(2026, 1, 1).toIso8601String(),
+        'completions': <String, dynamic>{
+          'usage': <String, dynamic>{
+            'promptTokens': 10,
+            'completionTokens': 20,
+            'totalTokens': 30,
+          },
+          'id': 'cmpl-1',
+          'model': 'qwen',
+          'limits': <String, dynamic>{
+            'maxTokens': 4096,
+            'contextWindowSize': 8192,
+          },
+        },
+      });
+
+      expect(message.completions?.limits?.maxTokens, equals(4096));
+      expect(message.completions?.limits?.contextWindowSize, equals(8192));
+    });
+  });
+
+  group('AgentOSSDK configuration', () {
+    test(
+      'accepts custom api client and overrides baseUrl when provided',
+      () async {
+        final interceptor = _CaptureBaseUrlInterceptor();
+        final dio = Dio(BaseOptions(baseUrl: 'http://old.local'))
+          ..interceptors.add(interceptor);
+        final sdk = AgentOSSDK(
+          baseUrl: 'http://new.local:20261',
+          apiClient: ApiClient(dio: dio),
+        );
+
+        final version = await sdk.agentos.getVersion();
+
+        expect(version.version, equals('1.2.3'));
+        expect(interceptor.lastBaseUrl, equals('http://new.local:20261'));
+      },
+    );
+
+    test('applies connect and receive timeout overrides', () async {
+      final interceptor = _CaptureOptionsInterceptor();
+      final apiClient = ApiClient(
+        dio: Dio(BaseOptions(baseUrl: 'http://old.local'))
+          ..interceptors.add(interceptor),
+      );
+      final sdk = AgentOSSDK(
+        baseUrl: 'http://timeout.local',
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: Duration.zero,
+        apiClient: apiClient,
+      );
+
+      final version = await sdk.agentos.getVersion();
+
+      expect(version.version, equals('1.2.3'));
+      expect(interceptor.lastBaseUrl, equals('http://timeout.local'));
+      expect(
+        interceptor.lastConnectTimeout,
+        equals(const Duration(seconds: 30)),
+      );
+      expect(interceptor.lastReceiveTimeout, equals(Duration.zero));
+    });
+  });
+
+  group('AgentOSSDK subscription lifecycle', () {
+    test('dispose stops receiving subsequent events', () async {
+      final interceptor = _DelayedAppKitInterceptor();
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(interceptor);
+      final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+      final handler = _CountingEventHandler();
+
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+      await sdk.agentos.subscribe(handler);
+
+      await handler.firstWelcome.future.timeout(const Duration(seconds: 2));
+      await sdk.dispose();
+
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(handler.welcomeCount, equals(1));
+      expect(handler.callAppCount, equals(0));
+    });
+  });
+
   group('SystemKitClient', () {
     test('fetches version from /version', () async {
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
@@ -19,6 +152,18 @@ void main() {
       final version = await root.getVersion();
 
       expect(version.version, equals('1.2.3'));
+    });
+
+    test('fetches readiness from /ready', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(_VersionInterceptor());
+      final client = ApiClient(dio: dio);
+      final root = SystemKitClient(apiClient: client);
+
+      final readiness = await root.getReady();
+
+      expect(readiness.ready, isTrue);
+      expect(readiness.liteAgentReady, isTrue);
     });
   });
 
@@ -54,9 +199,7 @@ void main() {
         bearerToken: 'token-123',
         sessionId: 'sess-123',
         userTask: UserTask(
-          content: <Content>[
-            Content(type: 'text', message: 'hello'),
-          ],
+          content: <Content>[Content(type: 'text', message: 'hello')],
         ),
       );
       expect(reply['sessionId'], equals('sess-123'));
@@ -72,19 +215,20 @@ void main() {
         bearerToken: 'token-123',
         sessionId: 'sess-123',
         userTask: UserTask(
-          content: <Content>[
-            Content(type: 'text', message: 'hello'),
-          ],
+          content: <Content>[Content(type: 'text', message: 'hello')],
         ),
-      ))
-          .toList();
+      )).toList();
 
       expect(events, isNotEmpty);
       expect(
         events.map((e) => e.agentEventType),
-        containsAll(<String>['message', 'chunk']),
+        containsAll(<String>['message', 'chunk', 'functionCall']),
       );
       expect(events.first.data, contains('hello'));
+      final functionCallEvent = events.firstWhere(
+        (event) => event.agentEventType == 'functionCall',
+      );
+      expect(functionCallEvent.data, contains('"functionCall"'));
     });
   });
 
@@ -101,13 +245,12 @@ void main() {
 
       final events = await (await client.subscribe(
         bearerToken: token.token,
-      ))
-          .toList();
+      )).toList();
 
       expect(events, isNotEmpty);
       expect(
         events.map((e) => e.agentosEventType),
-        containsAll(<String>['welcome', 'call']),
+        containsAll(<String>['welcome', 'callApp']),
       );
       expect(events.first.data, contains('bundleId'));
     });
@@ -127,6 +270,20 @@ class _VersionInterceptor extends Interceptor {
       );
       return;
     }
+    if (options.path == '/ready') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{
+            'ready': true,
+            'liteAgentReady': true,
+            'llmConfigured': true,
+          },
+        ),
+      );
+      return;
+    }
 
     handler.reject(
       DioException(
@@ -140,6 +297,155 @@ class _VersionInterceptor extends Interceptor {
       ),
     );
   }
+}
+
+class _CaptureBaseUrlInterceptor extends Interceptor {
+  String? lastBaseUrl;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    lastBaseUrl = options.baseUrl;
+    if (options.path == '/version') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{'version': '1.2.3'},
+        ),
+      );
+      return;
+    }
+    handler.reject(
+      DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 404,
+          data: 'Unhandled path ${options.path}',
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+  }
+}
+
+class _CaptureOptionsInterceptor extends Interceptor {
+  String? lastBaseUrl;
+  Duration? lastConnectTimeout;
+  Duration? lastReceiveTimeout;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    lastBaseUrl = options.baseUrl;
+    lastConnectTimeout = options.connectTimeout;
+    lastReceiveTimeout = options.receiveTimeout;
+    if (options.path == '/version') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{'version': '1.2.3'},
+        ),
+      );
+      return;
+    }
+    handler.reject(
+      DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 404,
+          data: 'Unhandled path ${options.path}',
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+  }
+}
+
+class _DelayedAppKitInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path == '/appkit/register') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, String>{'token': 'sk-demo'},
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/appkit/subscribe') {
+      final stream = _delayedSseStream();
+      final body = ResponseBody(
+        stream,
+        200,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>['text/event-stream'],
+        },
+      );
+      handler.resolve(
+        Response<ResponseBody>(
+          requestOptions: options,
+          statusCode: 200,
+          data: body,
+        ),
+      );
+      return;
+    }
+
+    handler.reject(
+      DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 404,
+          data: 'Unhandled path ${options.path}',
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+  }
+
+  Stream<Uint8List> _delayedSseStream() async* {
+    yield Uint8List.fromList(
+      utf8.encode('event: welcome\ndata: {"bundleId":"demo"}\n\n'),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    yield Uint8List.fromList(
+      utf8.encode(
+        'event: callApp\n'
+        'data: {"bundleId":"com.demo.app","contentList":[{"type":"text","message":"ping"}]}\n\n',
+      ),
+    );
+  }
+}
+
+class _CountingEventHandler extends AgentOSEventHandler {
+  int welcomeCount = 0;
+  int callAppCount = 0;
+  final Completer<void> firstWelcome = Completer<void>();
+
+  @override
+  Future<void> onWelcome(Welcome welcome) async {
+    welcomeCount += 1;
+    if (!firstWelcome.isCompleted) {
+      firstWelcome.complete();
+    }
+  }
+
+  @override
+  Future<void> onCallApp(Call call) async {
+    callAppCount += 1;
+  }
+
+  @override
+  Future<void> onDone() async {}
+
+  @override
+  Future<void> onError(Exception error) async {}
 }
 
 class _AgentKitInterceptor extends Interceptor {
@@ -189,10 +495,7 @@ class _AgentKitInterceptor extends Interceptor {
         Response(
           requestOptions: options,
           statusCode: 200,
-          data: <String, String>{
-            'sessionId': 'sess-123',
-            'content': 'hello',
-          },
+          data: <String, String>{'sessionId': 'sess-123', 'content': 'hello'},
         ),
       );
       return;
@@ -200,11 +503,14 @@ class _AgentKitInterceptor extends Interceptor {
 
     if (options.path == '/agentkit/chat') {
       final body = ResponseBody.fromString(
-        'event: message\n'
+        'event: agentmessage\n'
         'data: {"content":"hello"}\n'
         '\n'
-        'event: chunk\n'
+        'event: agentmessagechunk\n'
         'data: {"content":"he"}\n'
+        '\n'
+        'event: functionCall\n'
+        'data: {"sessionId":"sess-123","functionCall":{"id":"call-1","name":"demo_tool","arguments":{"query":"ping"}}}\n'
         '\n',
         200,
         headers: <String, List<String>>{
@@ -275,8 +581,8 @@ class _AppKitInterceptor extends Interceptor {
         'event: welcome\n'
         'data: {"bundleId":"demo"}\n'
         '\n'
-        'event: call\n'
-        'data: {"id":"call-1","from":"agentos","contentList":[{"type":"text","message":"ping"}]}\n'
+        'event: callApp\n'
+        'data: {"bundleId":"com.demo.app","contentList":[{"type":"text","message":"ping"}]}\n'
         '\n',
         200,
         headers: <String, List<String>>{

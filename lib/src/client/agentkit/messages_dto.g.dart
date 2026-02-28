@@ -80,6 +80,9 @@ Completions _$CompletionsFromJson(Map<String, dynamic> json) => Completions(
       : TokenUsage.fromJson(json['usage'] as Map<String, dynamic>),
   id: json['id'] as String,
   model: json['model'] as String,
+  limits: json['limits'] == null
+      ? null
+      : CompletionsLimits.fromJson(json['limits'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$CompletionsToJson(Completions instance) =>
@@ -87,12 +90,26 @@ Map<String, dynamic> _$CompletionsToJson(Completions instance) =>
       'usage': ?instance.usage?.toJson(),
       'id': instance.id,
       'model': instance.model,
+      'limits': ?instance.limits?.toJson(),
+    };
+
+CompletionsLimits _$CompletionsLimitsFromJson(Map<String, dynamic> json) =>
+    CompletionsLimits(
+      maxTokens: (json['maxTokens'] as num).toInt(),
+      contextWindowSize: (json['contextWindowSize'] as num?)?.toInt(),
+    );
+
+Map<String, dynamic> _$CompletionsLimitsToJson(CompletionsLimits instance) =>
+    <String, dynamic>{
+      'maxTokens': instance.maxTokens,
+      'contextWindowSize': ?instance.contextWindowSize,
     };
 
 TokenUsage _$TokenUsageFromJson(Map<String, dynamic> json) => TokenUsage(
   promptTokens: (json['promptTokens'] as num).toInt(),
   completionTokens: (json['completionTokens'] as num).toInt(),
   totalTokens: (json['totalTokens'] as num).toInt(),
+  contextUsageRatio: (json['contextUsageRatio'] as num?)?.toDouble(),
 );
 
 Map<String, dynamic> _$TokenUsageToJson(TokenUsage instance) =>
@@ -100,20 +117,25 @@ Map<String, dynamic> _$TokenUsageToJson(TokenUsage instance) =>
       'promptTokens': instance.promptTokens,
       'completionTokens': instance.completionTokens,
       'totalTokens': instance.totalTokens,
+      'contextUsageRatio': ?instance.contextUsageRatio,
     };
 
 UserTask _$UserTaskFromJson(Map<String, dynamic> json) => UserTask(
-  taskId: json['taskId'] as String?,
   content: (json['content'] as List<dynamic>)
       .map((e) => Content.fromJson(e as Map<String, dynamic>))
       .toList(),
-  isChunk: json['isChunk'] as bool? ?? true,
+  isChunk: json['isChunk'] as bool?,
+  extraSystemPrompt: json['extraSystemPrompt'] as String?,
+  llmConfig: json['llmConfig'] == null
+      ? null
+      : LLMConfig.fromJson(json['llmConfig'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$UserTaskToJson(UserTask instance) => <String, dynamic>{
-  'taskId': ?instance.taskId,
   'content': instance.content.map((e) => e.toJson()).toList(),
-  'isChunk': instance.isChunk,
+  'isChunk': ?instance.isChunk,
+  'extraSystemPrompt': ?instance.extraSystemPrompt,
+  'llmConfig': ?instance.llmConfig?.toJson(),
 };
 
 EventToolReturn _$EventToolReturnFromJson(Map<String, dynamic> json) =>
