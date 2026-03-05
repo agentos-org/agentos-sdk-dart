@@ -518,6 +518,10 @@ class LlmKitModule {
       options: options,
     );
   }
+
+  Future<List<LlmModelInfo>> listModels() {
+    return _client._llmKit.listModels();
+  }
 }
 
 class ToolKitModule {

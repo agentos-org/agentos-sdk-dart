@@ -49,6 +49,38 @@ void main() {
       expect(task.llmConfig!.contextWindowSize, equals(32768));
     });
 
+    test('supports llmConfig modelId mode', () {
+      final config = LLMConfig(modelId: 'qwen3-8b');
+      final payload = config.toJson();
+      expect(payload['modelId'], equals('qwen3-8b'));
+      expect(payload.containsKey('model'), isFalse);
+      expect(payload.containsKey('baseUrl'), isFalse);
+      expect(payload.containsKey('apiKey'), isFalse);
+    });
+
+    test('supports llmConfig custom mode with baseUrl/apiKey/model', () {
+      final config = LLMConfig(
+        baseUrl: 'http://127.0.0.1:60000',
+        apiKey: 'sk-custom',
+        model: 'explicit-model',
+      );
+      final payload = config.toJson();
+      expect(payload['baseUrl'], equals('http://127.0.0.1:60000'));
+      expect(payload['apiKey'], equals('sk-custom'));
+      expect(payload['model'], equals('explicit-model'));
+      expect(payload.containsKey('modelId'), isFalse);
+    });
+
+    test('allows llmConfig without core fields for auto/fallback mode', () {
+      final config = LLMConfig(temperature: 0.66);
+      final payload = config.toJson();
+      expect(payload['temperature'], equals(0.66));
+      expect(payload.containsKey('modelId'), isFalse);
+      expect(payload.containsKey('baseUrl'), isFalse);
+      expect(payload.containsKey('apiKey'), isFalse);
+      expect(payload.containsKey('model'), isFalse);
+    });
+
     test('parses completions limits passthrough fields for liteagent', () {
       final message = AgentMessage.fromJson(<String, dynamic>{
         'sessionId': 's1',
@@ -229,6 +261,28 @@ void main() {
         (event) => event.agentEventType == 'functionCall',
       );
       expect(functionCallEvent.data, contains('"functionCall"'));
+    });
+  });
+
+  group('LlmKitModule', () {
+    test('lists available text models from /llmkit/models', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(_LlmKitInterceptor());
+      final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+
+      final models = await sdk.llmkit.listModels();
+
+      expect(models.length, equals(2));
+      expect(models.first.id, equals('qwen3-8b'));
+      expect(models.first.type, equals('textGeneration'));
+      expect(models.first.alias, equals('qwen3-8b'));
+      expect(models.first.contextWindowSize, equals(8192));
+      expect(models.first.isRemote, isFalse);
+      expect(models[1].id, equals('remote-gpt'));
+      expect(models[1].name, equals('gpt-4.1'));
+      expect(models[1].alias, equals('gpt-4.1'));
+      expect(models[1].isRemote, isTrue);
+      expect(models[1].isCustom, isTrue);
     });
   });
 
@@ -594,6 +648,55 @@ class _AppKitInterceptor extends Interceptor {
           requestOptions: options,
           statusCode: 200,
           data: body,
+        ),
+      );
+      return;
+    }
+
+    handler.reject(
+      DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 404,
+          data: 'Unhandled path ${options.path}',
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+  }
+}
+
+class _LlmKitInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path == '/llmkit/models') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'qwen3-8b',
+              'name': 'qwen3-8b',
+              'alias': 'qwen3-8b',
+              'description': 'text model',
+              'type': 'textGeneration',
+              'contextWindowSize': 8192,
+              'isRemote': false,
+              'isCustom': false,
+            },
+            <String, dynamic>{
+              'id': 'remote-gpt',
+              'name': 'gpt-4.1',
+              'alias': 'gpt-4.1',
+              'description': 'remote custom model',
+              'type': 'textGeneration',
+              'contextWindowSize': 128000,
+              'isRemote': true,
+              'isCustom': true,
+            },
+          ],
         ),
       );
       return;

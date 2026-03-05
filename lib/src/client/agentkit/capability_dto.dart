@@ -72,11 +72,12 @@ class CallbackOpenTool {
   Map<String, dynamic> toJson() => _$CallbackOpenToolToJson(this);
 }
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class LLMConfig {
-  String baseUrl;
-  String apiKey;
-  String model;
+  String? modelId;
+  String? baseUrl;
+  String? apiKey;
+  String? model;
   double temperature;
   int maxTokens;
   int? contextWindowSize;
@@ -87,9 +88,10 @@ class LLMConfig {
   bool supportsDeepThinking;
 
   LLMConfig({
-    this.baseUrl = "http://localhost:8888/llmkit/text",
-    this.apiKey = "sk-",
-    required this.model,
+    this.modelId,
+    this.baseUrl,
+    this.apiKey,
+    this.model,
     this.temperature = 0.0,
     this.maxTokens = 4096,
     this.contextWindowSize,

@@ -63,9 +63,10 @@ Map<String, dynamic> _$CallbackOpenToolToJson(CallbackOpenTool instance) =>
     };
 
 LLMConfig _$LLMConfigFromJson(Map<String, dynamic> json) => LLMConfig(
-  baseUrl: json['baseUrl'] as String? ?? "http://localhost:8888/llmkit/text",
-  apiKey: json['apiKey'] as String? ?? "sk-",
-  model: json['model'] as String,
+  modelId: json['modelId'] as String?,
+  baseUrl: json['baseUrl'] as String?,
+  apiKey: json['apiKey'] as String?,
+  model: json['model'] as String?,
   temperature: (json['temperature'] as num?)?.toDouble() ?? 0.0,
   maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 4096,
   contextWindowSize: (json['contextWindowSize'] as num?)?.toInt(),
@@ -77,12 +78,13 @@ LLMConfig _$LLMConfigFromJson(Map<String, dynamic> json) => LLMConfig(
 );
 
 Map<String, dynamic> _$LLMConfigToJson(LLMConfig instance) => <String, dynamic>{
-  'baseUrl': instance.baseUrl,
-  'apiKey': instance.apiKey,
-  'model': instance.model,
+  'modelId': ?instance.modelId,
+  'baseUrl': ?instance.baseUrl,
+  'apiKey': ?instance.apiKey,
+  'model': ?instance.model,
   'temperature': instance.temperature,
   'maxTokens': instance.maxTokens,
-  'contextWindowSize': instance.contextWindowSize,
+  'contextWindowSize': ?instance.contextWindowSize,
   'topP': instance.topP,
   'supportsToolCall': instance.supportsToolCalling,
   'supportsReasoning': instance.supportsDeepThinking,

@@ -4,6 +4,10 @@ Future<void> main(List<String> args) async {
   final bundleId = "com.mydomain.myapp";
 
   /// TODO: Replace with the model you want the agent to use.
+  /// Modes:
+  /// 1) llmConfig == null => auto mode
+  /// 2) llmConfig.modelId => use a built-in model by id
+  /// 3) llmConfig.baseUrl + apiKey + model => use custom model endpoint
   final llmModel = "qwen3-1.7b";
 
   /// TODO: Adjust the system prompt for your agent.
