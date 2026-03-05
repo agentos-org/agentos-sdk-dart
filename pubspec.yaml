@@ -1,12 +1,11 @@
 name: agentos_sdk
-description: A starting point for Dart libraries or applications.
+description: Dart SDK for integrating with AgentOS APIs and clients.
 version: 0.1.0
-# repository: https://github.com/my_org/my_repo
+repository: https://github.com/agentos-org/agentos-sdk-dart
 
 environment:
   sdk: '>=3.8.0 <4.0.0'
 
-# Add regular dependencies here.
 dependencies:
   json_annotation: ^4.9.0
   dio: ^5.7.0
