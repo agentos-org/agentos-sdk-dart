@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:opentool_daemon/opentool_daemon_client.dart';
+import 'package:opentool_dart/opentool_schema.dart';
 
 import '../agentkit/agent_message_handler.dart';
 import '../agentkit/agentkit_client.dart';
@@ -33,36 +35,28 @@ class AgentOSSDK {
          connectTimeout: connectTimeout,
          receiveTimeout: receiveTimeout,
          apiClient: apiClient,
-       ) {
-    _systemKit = SystemKitClient(apiClient: _apiClient);
-    _agentKit = AgentKitClient(apiClient: _apiClient);
-    _appKit = AppKitClient(apiClient: _apiClient);
-    _intentKit = IntentKitClient(apiClient: _apiClient);
-    _llmKit = LlmKitClient(apiClient: _apiClient);
-    _toolKit = ToolKitClient(apiClient: _apiClient);
-    agentos = AgentOSModule._(this);
-    agentkit = AgentKitModule._(this);
-    intentkit = IntentKitModule._(this);
-    llmkit = LlmKitModule._(this);
-    toolkit = ToolKitModule._(this);
-  }
+       );
 
   final ApiClient _apiClient;
-  late final SystemKitClient _systemKit;
-  late final AgentKitClient _agentKit;
-  late final AppKitClient _appKit;
-  late final IntentKitClient _intentKit;
-  late final LlmKitClient _llmKit;
-  late final ToolKitClient _toolKit;
+  late final SystemKitClient _systemKit = SystemKitClient(
+    apiClient: _apiClient,
+  );
+  late final AgentKitClient _agentKit = AgentKitClient(apiClient: _apiClient);
+  late final AppKitClient _appKit = AppKitClient(apiClient: _apiClient);
+  late final IntentKitClient _intentKit = IntentKitClient(
+    apiClient: _apiClient,
+  );
+  late final LlmKitClient _llmKit = LlmKitClient(apiClient: _apiClient);
+  late final ToolKitClient _toolKit = ToolKitClient(apiClient: _apiClient);
   String? _token;
   StreamSubscription<AgentOSEvent>? _agentOsSubscription;
   AgentOSEventHandler? _agentOsEventHandler;
 
-  late final AgentOSModule agentos;
-  late final AgentKitModule agentkit;
-  late final IntentKitModule intentkit;
-  late final LlmKitModule llmkit;
-  late final ToolKitModule toolkit;
+  late final AgentOSModule agentos = AgentOSModule._(this);
+  late final AgentKitModule agentkit = AgentKitModule._(this);
+  late final IntentKitModule intentkit = IntentKitModule._(this);
+  late final LlmKitModule llmkit = LlmKitModule._(this);
+  late final ToolKitModule toolkit = ToolKitModule._(this);
 
   static ApiClient _buildApiClient({
     String? baseUrl,
@@ -98,7 +92,7 @@ class AgentOSSDK {
     if (connectTimeout != null || receiveTimeout != null) {
       return ApiClient(
         baseOptions: BaseOptions(
-          baseUrl: 'http://localhost:20261',
+          baseUrl: 'http://localhost:8888',
           connectTimeout: effectiveConnectTimeout,
           receiveTimeout: effectiveReceiveTimeout,
         ),
@@ -228,11 +222,6 @@ class AgentKitModule {
   AgentKitModule._(this._client);
 
   final AgentOSSDK _client;
-
-  /// Fetches the AgentKit service version.
-  Future<Version> getVersion() {
-    return _client._agentKit.getVersion(bearerToken: _client._requireToken());
-  }
 
   /// Retrieves an agent by agentId.
   Future<Map<String, dynamic>> getAgent({required String agentId}) {
@@ -513,19 +502,11 @@ class ToolKitModule {
 
   final AgentOSSDK _client;
 
-  Future<Response<dynamic>> request(
-    String path, {
-    String method = 'POST',
-    Map<String, dynamic>? queryParameters,
-    dynamic data,
-    Options? options,
-  }) {
-    return _client._toolKit.request(
-      path,
-      method: method,
-      queryParameters: queryParameters,
-      data: data,
-      options: options,
-    );
+  Future<List<ToolDto>> listTool([String? all]) {
+    return _client._toolKit.listTool(all);
+  }
+
+  Future<OpenTool?> loadTool(String toolId) {
+    return _client._toolKit.loadTool(toolId);
   }
 }

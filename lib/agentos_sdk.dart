@@ -1,4 +1,6 @@
 export 'package:dart_openai_sdk/dart_openai_sdk.dart';
+export 'package:opentool_daemon/opentool_daemon_client.dart';
+export 'package:opentool_dart/opentool_schema.dart';
 
 export 'src/client/agentos/agentos_sdk.dart';
 export 'src/client/agentos/agentos_event_handler.dart';

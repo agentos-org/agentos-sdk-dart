@@ -100,7 +100,7 @@ final sdk = AgentOSSDK(
 ```dart
 import 'package:agentos_sdk/agentos_sdk.dart';
 
-final sdk = AgentOSSDK(baseUrl: 'http://localhost:20261');
+final sdk = AgentOSSDK(baseUrl: 'http://localhost:8888');
 
 final models = await sdk.llmkit.listModels();
 print(models.map((model) => model.alias).toList());
@@ -269,7 +269,7 @@ class MyHandler extends AgentMessageHandler {
 
 ## 配置
 
-- Base URL 由 SDK 统一管理，默认值为 `http://localhost:20261`。
+- Base URL 由 SDK 统一管理，默认值为 `http://localhost:8888`。
 
 ## 备注
 

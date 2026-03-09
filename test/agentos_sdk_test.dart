@@ -118,14 +118,14 @@ void main() {
         final dio = Dio(BaseOptions(baseUrl: 'http://old.local'))
           ..interceptors.add(interceptor);
         final sdk = AgentOSSDK(
-          baseUrl: 'http://new.local:20261',
+          baseUrl: 'http://new.local:8888',
           apiClient: ApiClient(dio: dio),
         );
 
         final version = await sdk.agentos.getVersion();
 
         expect(version.version, equals('1.2.3'));
-        expect(interceptor.lastBaseUrl, equals('http://new.local:20261'));
+        expect(interceptor.lastBaseUrl, equals('http://new.local:8888'));
       },
     );
 
@@ -286,12 +286,40 @@ void main() {
     });
 
     test('configures llmkit chat to use the text endpoint by default', () {
-      final sdk = AgentOSSDK(baseUrl: 'http://fake.local:20261');
+      final sdk = AgentOSSDK(baseUrl: 'http://fake.local:8888');
 
       expect(
         sdk.llmkit.chat.baseUrl,
-        equals('http://fake.local:20261/llmkit/text'),
+        equals('http://fake.local:8888/llmkit/text'),
       );
+    });
+  });
+
+  group('ToolKitModule', () {
+    test('lists tools from /toolkit/list', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(_ToolKitInterceptor());
+      final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+
+      final tools = await sdk.toolkit.listTool();
+
+      expect(tools.length, equals(2));
+      expect(tools.first.id, equals('tool-weather'));
+      expect(tools.first.status, equals('running'));
+      expect(tools[1].alias, equals('calendar'));
+    });
+
+    test('loads tool definition from /toolkit/{toolId}/load', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(_ToolKitInterceptor());
+      final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+
+      final tool = await sdk.toolkit.loadTool('tool-weather');
+
+      expect(tool, isNotNull);
+      expect(tool!.opentool, equals('1.0.0'));
+      expect(tool.info.title, equals('Weather Tool'));
+      expect(tool.server?.url, equals('http://127.0.0.1:9100'));
     });
   });
 
@@ -706,6 +734,71 @@ class _LlmKitInterceptor extends Interceptor {
               'isCustom': true,
             },
           ],
+        ),
+      );
+      return;
+    }
+
+    handler.reject(
+      DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 404,
+          data: 'Unhandled path ${options.path}',
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+  }
+}
+
+class _ToolKitInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path == '/toolkit/list') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'tool-weather',
+              'alias': 'weather',
+              'host': '127.0.0.1',
+              'port': 9100,
+              'status': 'running',
+              'serverId': 'server-weather',
+            },
+            <String, dynamic>{
+              'id': 'tool-calendar',
+              'alias': 'calendar',
+              'host': '127.0.0.1',
+              'port': 9200,
+              'status': 'stopped',
+              'serverId': 'server-calendar',
+            },
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/toolkit/tool-weather/load') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{
+            'opentool': '1.0.0',
+            'info': <String, dynamic>{
+              'title': 'Weather Tool',
+              'description': 'Provides weather lookup',
+              'version': '0.1.0',
+            },
+            'server': <String, dynamic>{'url': 'http://127.0.0.1:9100'},
+            'functions': <Map<String, dynamic>>[],
+          },
         ),
       );
       return;

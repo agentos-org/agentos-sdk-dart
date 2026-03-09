@@ -54,10 +54,10 @@ class LlmModelInfo {
 class LlmKitClient {
   LlmKitClient({ApiClient? apiClient}) : this._(apiClient ?? ApiClient());
 
-  LlmKitClient._(this._apiClient) : chat = LlmKitChatClient._(_apiClient);
+  LlmKitClient._(this._apiClient);
 
   final ApiClient _apiClient;
-  final LlmKitChatClient chat;
+  late final LlmKitChatClient chat = LlmKitChatClient._(_apiClient);
 
   Future<List<LlmModelInfo>> listModels() async {
     final Response<dynamic> response = await _apiClient.dio.get(

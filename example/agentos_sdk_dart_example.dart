@@ -8,12 +8,12 @@ Future<void> main(List<String> args) async {
   final sdk = AgentOSSDK();
 
   /// HTTP:
-  /// GET http://localhost:20261/version
+  /// GET http://localhost:8888/version
   final version = await sdk.agentos.getVersion();
   print('AgentOS API version: ${version.version}');
 
   /// HTTP:
-  /// POST http://localhost:20261/appkit/register
+  /// POST http://localhost:8888/appkit/register
   /// Body: {"bundleId":"com.mydomain.myapp"}
   await sdk.agentos.registerBundle(bundleId: bundleId);
   print('Registered bundle (bundleId: $bundleId)');
@@ -21,18 +21,18 @@ Future<void> main(List<String> args) async {
   print('Subscribe AgentOS event...');
 
   /// HTTP:
-  /// GET http://localhost:20261/appkit/subscribe
+  /// GET http://localhost:8888/appkit/subscribe
   /// Headers: Authorization: Bearer <token from registerBundle>
   /// Response: text/event-stream (SSE)
   await sdk.agentos.subscribe(_DemoEventHandler());
 
   /// HTTP:
-  /// GET http://localhost:20261/llmkit/models
+  /// GET http://localhost:8888/llmkit/models
   final models = await sdk.llmkit.listModels();
   print('Available llmkit models: ${models.map((m) => m.alias).join(", ")}');
 
   /// HTTP:
-  /// POST http://localhost:20261/llmkit/text/chat/completions
+  /// POST http://localhost:8888/llmkit/text/chat/completions
   final chatCompletion = await sdk.llmkit.chat.create(
     model: llmModel,
     messages: <OpenAIChatCompletionChoiceMessageModel>[
