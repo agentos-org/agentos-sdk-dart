@@ -321,6 +321,24 @@ void main() {
       expect(tool.info.title, equals('Weather Tool'));
       expect(tool.server?.url, equals('http://127.0.0.1:9100'));
     });
+
+    test('subscribes to tool lifecycle events from /toolkit/events', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(_ToolKitInterceptor());
+      final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+
+      final events = await (await sdk.toolkit.subscribeToolEvents(
+        daemonApiKey: 'daemon-key',
+      )).toList();
+
+      expect(events, hasLength(2));
+      expect(events.first.type, equals('tool.snapshot'));
+      expect(events.first.reason, equals('snapshot'));
+      expect(events.first.tool.id, equals('tool-weather'));
+      expect(events.last.type, equals('tool.ready'));
+      expect(events.last.reason, equals('started'));
+      expect(events.last.tool.status, equals('running'));
+    });
   });
 
   group('AppKitClient', () {
@@ -799,6 +817,34 @@ class _ToolKitInterceptor extends Interceptor {
             'server': <String, dynamic>{'url': 'http://127.0.0.1:9100'},
             'functions': <Map<String, dynamic>>[],
           },
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/toolkit/events') {
+      expect(options.queryParameters['snapshot'], equals('1'));
+      expect(options.headers[TOOL_API_KEY_HEADER], equals('daemon-key'));
+      final body = ResponseBody.fromString(
+        'event: ready\n'
+        'data: {}\n'
+        '\n'
+        'event: tool.snapshot\n'
+        'data: {"type":"tool.snapshot","reason":"snapshot","tool":{"id":"tool-weather","alias":"weather","host":"127.0.0.1","port":9100,"status":"running","serverId":"server-weather"},"occurredAt":"2026-03-09T00:00:00.000Z"}\n'
+        '\n'
+        'event: tool.ready\n'
+        'data: {"type":"tool.ready","reason":"started","tool":{"id":"tool-weather","alias":"weather","host":"127.0.0.1","port":9100,"status":"running","serverId":"server-weather"},"occurredAt":"2026-03-09T00:00:01.000Z"}\n'
+        '\n',
+        200,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>['text/event-stream'],
+        },
+      );
+      handler.resolve(
+        Response<ResponseBody>(
+          requestOptions: options,
+          statusCode: 200,
+          data: body,
         ),
       );
       return;

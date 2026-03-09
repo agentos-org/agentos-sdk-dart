@@ -509,4 +509,14 @@ class ToolKitModule {
   Future<OpenTool?> loadTool(String toolId) {
     return _client._toolKit.loadTool(toolId);
   }
+
+  Future<Stream<ToolLifecycleEventDto>> subscribeToolEvents({
+    required String daemonApiKey,
+    bool snapshot = true,
+  }) {
+    return _client._toolKit.subscribeToolEvents(
+      daemonApiKey: daemonApiKey,
+      snapshot: snapshot,
+    );
+  }
 }
