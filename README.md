@@ -1,8 +1,8 @@
 # AgentOS SDK for Dart
 
 A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, AppKit,
-and LlmKit chat endpoints. Use the unified `AgentOSSDK` to avoid managing
-tokens manually.
+IntentKit, LlmKit chat, and ToolKit discovery endpoints. Use the unified
+`AgentOSSDK` to avoid managing tokens manually.
 
 ## Features
 
@@ -10,8 +10,11 @@ tokens manually.
 - AgentKit API: agent CRUD, session init,
   chat stream/simple, history, stop/clear, callbacks)
 - AppKit API: bundle registration and SSE subscription
+- IntentKit API: intent submission, confirmation, and next-action suggestion
 - LlmKit API: model listing and OpenAI-compatible chat client at
   `/llmkit/text`
+- ToolKit API: tool listing, tool definition loading, and tool lifecycle event
+  subscription
 
 ## Getting Started
 
@@ -79,7 +82,7 @@ class _DemoEventHandler extends AgentOSEventHandler {
 ```dart
 import 'package:agentos_sdk/agentos_sdk.dart';
 
-final sdk = AgentOSSDK(baseUrl: 'https://agentos.example.com');
+final sdk = AgentOSSDK(baseUrl: 'http://localhost:8888');
 ```
 
 ### Configure Long-Running Stream Timeouts
@@ -88,7 +91,7 @@ final sdk = AgentOSSDK(baseUrl: 'https://agentos.example.com');
 import 'package:agentos_sdk/agentos_sdk.dart';
 
 final sdk = AgentOSSDK(
-  baseUrl: 'https://agentos.example.com',
+  baseUrl: 'http://localhost:8888',
   connectTimeout: const Duration(seconds: 20),
   receiveTimeout: Duration.zero, // keep long SSE streams alive
 );
@@ -142,7 +145,9 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit endpoints with internal token handling. |
 | `agentkit` | `AgentKitModule` | AgentKit endpoints with internal token handling. |
+| `intentkit` | `IntentKitModule` | IntentKit endpoints with internal token handling. |
 | `llmkit` | `LlmKitModule` | LlmKit model listing and preconfigured chat client. |
+| `toolkit` | `ToolKitModule` | ToolKit discovery endpoints and tool lifecycle event subscription. |
 | `dispose()` | `Future<void>` | Releases SDK resources and cancels active AppKit subscription. |
 
 ### AgentOSModule (`sdk.agentos`)
@@ -173,12 +178,29 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | Sends tool callback results. |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | Sends streaming tool callback results. |
 
+### IntentKitModule (`sdk.intentkit`)
+
+| Method | Parameters | Description |
+| --- | --- | --- |
+| `submitRaw(IntentKitSubmitRawRequest request)` | `request` | Submits raw intent input for asynchronous processing. |
+| `submitIntent(IntentKitSubmitIntentRequest request)` | `request` | Submits a structured intent request. |
+| `confirmJob(IntentKitConfirmJobRequest request)` | `request` | Confirms an existing IntentKit job. |
+| `suggestNextAction(IntentKitSuggestNextActionRequest request)` | `request` | Requests the recommended next action from IntentKit. |
+
 ### LlmKitModule (`sdk.llmkit`)
 
 | Method/Property | Type | Description |
 | --- | --- | --- |
 | `listModels()` | `Future<List<LlmModelInfo>>` | Fetches available LLM models from `/llmkit/models`. |
 | `chat` | `LlmKitChatClient` | Preconfigured OpenAI-compatible chat client using `{baseUrl}/llmkit/text`. |
+
+### ToolKitModule (`sdk.toolkit`)
+
+| Method | Parameters | Description |
+| --- | --- | --- |
+| `listTool([String? all])` | `all` | Lists available tools from `/toolkit/list`. |
+| `loadTool(String toolId)` | `toolId` | Loads an `OpenTool` definition from `/toolkit/{toolId}/load`. |
+| `subscribeToolEvents({required String daemonApiKey, bool snapshot = true})` | `daemonApiKey`, `snapshot` | Subscribes to `/toolkit/events` and streams `ToolLifecycleEventDto` updates. |
 
 ### AgentOSEventHandler
 
@@ -194,7 +216,7 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 ```dart
 import 'package:agentos_sdk/agentos_sdk.dart';
 
-final sdk = AgentOSSDK(baseUrl: 'https://agentos.example.com');
+final sdk = AgentOSSDK(baseUrl: 'http://localhost:8888');
 
 await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
 await sdk.agentos.subscribe(myHandler); // app start
@@ -279,11 +301,13 @@ class MyHandler extends AgentMessageHandler {
 
 - Call `agentos.registerBundle` before using `agentkit`/`agentos` APIs that
   require a token.
-- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `llmkit`) for
-  clearer separation of API areas.
+- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `intentkit`,
+  `llmkit`, `toolkit`) for clearer separation of API areas.
 - AgentKit endpoints are exposed under `/agentkit/*`.
 - `sdk.llmkit.chat` currently exposes chat only and targets
   `/llmkit/text/chat/completions` by default.
+- `sdk.toolkit.subscribeToolEvents(...)` requires a daemon API key and streams
+  tool lifecycle events via SSE.
 - External integrations should use only `package:agentos_sdk/agentos_sdk.dart`
   and avoid importing `package:agentos_sdk/src/...`.
 
