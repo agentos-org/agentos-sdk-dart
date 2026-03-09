@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
-一个轻量的 Dart SDK，用于访问 AgentOS API，支持 Root、AgentKit 和 AppKit 接口。
-推荐使用统一的 `AgentOSSDK`，无需手动管理 token。
+一个轻量的 Dart SDK，用于访问 AgentOS API，支持 Root、AgentKit、AppKit
+和 LlmKit chat 接口。推荐使用统一的 `AgentOSSDK`，无需手动管理 token。
 
 ## 功能
 
@@ -9,6 +9,7 @@
 - AgentKit API：Agent CRUD、会话初始化、
   chat 流式/单次、历史记录、stop/clear、回调
 - AppKit API：bundle 注册与 SSE 订阅
+- LlmKit API：模型列表与指向 `/llmkit/text` 的 OpenAI 兼容 chat 客户端
 
 ## 快速开始
 
@@ -91,6 +92,34 @@ final sdk = AgentOSSDK(
 );
 ```
 
+### 使用 LlmKit Chat
+
+`agentos_sdk` 会重新导出 `package:dart_openai_sdk/dart_openai_sdk.dart`，
+因此可以直接使用 OpenAI chat 的请求和响应类型。
+
+```dart
+import 'package:agentos_sdk/agentos_sdk.dart';
+
+final sdk = AgentOSSDK(baseUrl: 'http://localhost:20261');
+
+final models = await sdk.llmkit.listModels();
+print(models.map((model) => model.alias).toList());
+
+final completion = await sdk.llmkit.chat.create(
+  model: 'qwen3-1.7b',
+  messages: <OpenAIChatCompletionChoiceMessageModel>[
+    OpenAIChatCompletionChoiceMessageModel(
+      role: OpenAIChatMessageRole.user,
+      content: <OpenAIChatCompletionChoiceMessageContentItemModel>[
+        OpenAIChatCompletionChoiceMessageContentItemModel.text('Hello.'),
+      ],
+    ),
+  ],
+);
+
+print(completion.choices.first.message.content?.first.text);
+```
+
 ## API 参考
 
 ### AgentOSSDK
@@ -111,6 +140,7 @@ AgentOSSDK({
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit 相关接口，内部处理 token。 |
 | `agentkit` | `AgentKitModule` | AgentKit 相关接口，内部处理 token。 |
+| `llmkit` | `LlmKitModule` | LlmKit 模型列表与预配置 chat 客户端。 |
 | `dispose()` | `Future<void>` | 释放 SDK 资源并取消当前 AppKit 订阅。 |
 
 ### AgentOSModule（`sdk.agentos`）
@@ -140,6 +170,13 @@ AgentOSSDK({
 | `clear({required String sessionId})` | `sessionId` | 清除会话数据。 |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | 发送工具回调结果。 |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | 发送流式工具回调结果。 |
+
+### LlmKitModule（`sdk.llmkit`）
+
+| 方法/属性 | 类型 | 说明 |
+| --- | --- | --- |
+| `listModels()` | `Future<List<LlmModelInfo>>` | 从 `/llmkit/models` 获取可用模型列表。 |
+| `chat` | `LlmKitChatClient` | 预配置的 OpenAI 兼容 chat 客户端，默认使用 `{baseUrl}/llmkit/text`。 |
 
 ### AgentOSEventHandler
 
@@ -237,8 +274,10 @@ class MyHandler extends AgentMessageHandler {
 ## 备注
 
 - 在调用需要 token 的 `agentkit`/`agentos` 接口前，请先调用 `agentos.registerBundle`。
-- `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`），便于按 API 领域区分。
+- `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`、`llmkit`），便于按 API 领域区分。
 - AgentKit 接口通过 `/agentkit/*` 对外提供。
+- `sdk.llmkit.chat` 当前仅暴露 chat，默认请求
+  `/llmkit/text/chat/completions`。
 - 外部集成应仅使用 `package:agentos_sdk/agentos_sdk.dart`，避免导入 `package:agentos_sdk/src/...`。
 
 ## 开发命令

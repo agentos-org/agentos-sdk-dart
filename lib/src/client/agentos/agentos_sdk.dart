@@ -501,23 +501,7 @@ class LlmKitModule {
 
   final AgentOSSDK _client;
 
-  Future<Response<dynamic>> request(
-    LlmKitServiceType service,
-    String path, {
-    String method = 'POST',
-    Map<String, dynamic>? queryParameters,
-    dynamic data,
-    Options? options,
-  }) {
-    return _client._llmKit.request(
-      service,
-      path,
-      method: method,
-      queryParameters: queryParameters,
-      data: data,
-      options: options,
-    );
-  }
+  LlmKitChatClient get chat => _client._llmKit.chat;
 
   Future<List<LlmModelInfo>> listModels() {
     return _client._llmKit.listModels();

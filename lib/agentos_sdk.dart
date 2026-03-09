@@ -1,3 +1,5 @@
+export 'package:dart_openai_sdk/dart_openai_sdk.dart';
+
 export 'src/client/agentos/agentos_sdk.dart';
 export 'src/client/agentos/agentos_event_handler.dart';
 export 'src/client/agentkit/agent_message_handler.dart';

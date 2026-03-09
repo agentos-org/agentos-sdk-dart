@@ -1,10 +1,9 @@
 import 'dart:convert';
 
+import 'package:dart_openai_sdk/dart_openai_sdk.dart';
 import 'package:dio/dio.dart';
 
 import '../../utils/api_client.dart';
-
-enum LlmKitServiceType { text, vision, embedding, tts, asr }
 
 class LlmModelInfo {
   LlmModelInfo({
@@ -53,26 +52,12 @@ class LlmModelInfo {
 }
 
 class LlmKitClient {
-  LlmKitClient({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
+  LlmKitClient({ApiClient? apiClient}) : this._(apiClient ?? ApiClient());
+
+  LlmKitClient._(this._apiClient) : chat = LlmKitChatClient._(_apiClient);
 
   final ApiClient _apiClient;
-
-  Future<Response<dynamic>> request(
-    LlmKitServiceType service,
-    String path, {
-    String method = 'POST',
-    Map<String, dynamic>? queryParameters,
-    dynamic data,
-    Options? options,
-  }) {
-    final normalizedPath = path.startsWith('/') ? path : '/$path';
-    return _apiClient.dio.request<dynamic>(
-      '${_prefixFor(service)}$normalizedPath',
-      data: data,
-      queryParameters: queryParameters,
-      options: options ?? Options(method: method),
-    );
-  }
+  final LlmKitChatClient chat;
 
   Future<List<LlmModelInfo>> listModels() async {
     final Response<dynamic> response = await _apiClient.dio.get(
@@ -108,19 +93,157 @@ class LlmKitClient {
     }
     throw FormatException('Expected JSON array but got ${decoded.runtimeType}');
   }
+}
 
-  String _prefixFor(LlmKitServiceType service) {
-    switch (service) {
-      case LlmKitServiceType.text:
-        return '/llmkit/text';
-      case LlmKitServiceType.vision:
-        return '/llmkit/vision';
-      case LlmKitServiceType.embedding:
-        return '/llmkit/embedding';
-      case LlmKitServiceType.tts:
-        return '/llmkit/tts';
-      case LlmKitServiceType.asr:
-        return '/llmkit/asr';
+class LlmKitChatClient {
+  LlmKitChatClient._(ApiClient apiClient)
+    : _client = OpenAIClient(
+        baseUrl: _buildBaseUrl(apiClient.dio.options.baseUrl),
+        requestsTimeOut: _resolveTimeout(apiClient.dio.options.receiveTimeout),
+      );
+
+  final OpenAIClient _client;
+
+  String get baseUrl => _client.baseUrl;
+
+  Future<OpenAIChatCompletionModel> create({
+    required String model,
+    required List<OpenAIChatCompletionChoiceMessageModel> messages,
+    List<OpenAIToolModel>? tools,
+    dynamic toolChoice,
+    double? temperature,
+    double? topP,
+    int? n,
+    dynamic stop,
+    int? maxTokens,
+    double? presencePenalty,
+    double? frequencyPenalty,
+    Map<String, dynamic>? logitBias,
+    String? user,
+    Object? responseFormat,
+    int? seed,
+    bool? logprobs,
+    int? topLogprobs,
+    String? reasoningEffort,
+    bool? enableThinking,
+  }) {
+    return _client.chat.create(
+      model: model,
+      messages: messages,
+      tools: tools,
+      toolChoice: toolChoice,
+      temperature: temperature,
+      topP: topP,
+      n: n,
+      stop: stop,
+      maxTokens: maxTokens,
+      presencePenalty: presencePenalty,
+      frequencyPenalty: frequencyPenalty,
+      logitBias: logitBias,
+      user: user,
+      responseFormat: responseFormat,
+      seed: seed,
+      logprobs: logprobs,
+      topLogprobs: topLogprobs,
+      reasoningEffort: reasoningEffort,
+      enableThinking: enableThinking,
+    );
+  }
+
+  Stream<OpenAIStreamChatCompletionModel> createStream({
+    required String model,
+    required List<OpenAIChatCompletionChoiceMessageModel> messages,
+    List<OpenAIToolModel>? tools,
+    dynamic toolChoice,
+    double? temperature,
+    double? topP,
+    int? n,
+    dynamic stop,
+    int? maxTokens,
+    double? presencePenalty,
+    double? frequencyPenalty,
+    Map<String, dynamic>? logitBias,
+    Object? responseFormat,
+    int? seed,
+    String? user,
+    Map<String, dynamic>? streamOptions,
+    String? reasoningEffort,
+    bool? enableThinking,
+  }) {
+    return _client.chat.createStream(
+      model: model,
+      messages: messages,
+      tools: tools,
+      toolChoice: toolChoice,
+      temperature: temperature,
+      topP: topP,
+      n: n,
+      stop: stop,
+      maxTokens: maxTokens,
+      presencePenalty: presencePenalty,
+      frequencyPenalty: frequencyPenalty,
+      logitBias: logitBias,
+      responseFormat: responseFormat,
+      seed: seed,
+      user: user,
+      streamOptions: streamOptions,
+      reasoningEffort: reasoningEffort,
+      enableThinking: enableThinking,
+    );
+  }
+
+  Stream<OpenAIStreamChatCompletionModel> createRemoteFunctionStream({
+    required String model,
+    required List<OpenAIChatCompletionChoiceMessageModel> messages,
+    List<OpenAIToolModel>? tools,
+    dynamic toolChoice,
+    double? temperature,
+    double? topP,
+    int? n,
+    dynamic stop,
+    int? maxTokens,
+    double? presencePenalty,
+    double? frequencyPenalty,
+    Map<String, dynamic>? logitBias,
+    String? user,
+    Object? responseFormat,
+    int? seed,
+    String? reasoningEffort,
+    bool? enableThinking,
+  }) {
+    return _client.chat.createRemoteFunctionStream(
+      model: model,
+      messages: messages,
+      tools: tools,
+      toolChoice: toolChoice,
+      temperature: temperature,
+      topP: topP,
+      n: n,
+      stop: stop,
+      maxTokens: maxTokens,
+      presencePenalty: presencePenalty,
+      frequencyPenalty: frequencyPenalty,
+      logitBias: logitBias,
+      user: user,
+      responseFormat: responseFormat,
+      seed: seed,
+      reasoningEffort: reasoningEffort,
+      enableThinking: enableThinking,
+    );
+  }
+
+  static String _buildBaseUrl(String baseUrl) {
+    final uri = Uri.parse(baseUrl);
+    final normalizedBase = uri.path.endsWith('/')
+        ? uri.path.substring(0, uri.path.length - 1)
+        : uri.path;
+    return uri.replace(path: '$normalizedBase/llmkit/text').toString();
+  }
+
+  static Duration? _resolveTimeout(Duration? timeout) {
+    if (timeout == null || timeout == Duration.zero) {
+      return null;
     }
+    return timeout;
   }
 }

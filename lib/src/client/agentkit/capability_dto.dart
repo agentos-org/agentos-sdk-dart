@@ -3,13 +3,13 @@ import 'sessions_dto.dart';
 
 part 'capability_dto.g.dart';
 
-Object? _readSupportsToolCalling(Map json, String key) {
-  return json['supportsToolCall'] ?? json['supportsToolCalling'];
-}
-
-Object? _readSupportsDeepThinking(Map json, String key) {
-  return json['supportsReasoning'] ?? json['supportsDeepThinking'];
-}
+// Object? _readSupportsToolCalling(Map json, String key) {
+//   return json['supportsToolCall'] ?? json['supportsToolCalling'];
+// }
+//
+// Object? _readSupportsDeepThinking(Map json, String key) {
+//   return json['supportsReasoning'] ?? json['supportsDeepThinking'];
+// }
 
 enum ApiKeyType { basic, bearer, original }
 
@@ -82,10 +82,8 @@ class LLMConfig {
   int maxTokens;
   int? contextWindowSize;
   double topP;
-  @JsonKey(name: 'supportsToolCall', readValue: _readSupportsToolCalling)
-  bool supportsToolCalling;
-  @JsonKey(name: 'supportsReasoning', readValue: _readSupportsDeepThinking)
-  bool supportsDeepThinking;
+  bool supportsToolCall;
+  bool supportsReasoning;
 
   LLMConfig({
     this.modelId,
@@ -96,8 +94,8 @@ class LLMConfig {
     this.maxTokens = 4096,
     this.contextWindowSize,
     this.topP = 1.0,
-    this.supportsToolCalling = true,
-    this.supportsDeepThinking = false,
+    this.supportsToolCall = true,
+    this.supportsReasoning = false,
   });
 
   factory LLMConfig.fromJson(Map<String, dynamic> json) =>

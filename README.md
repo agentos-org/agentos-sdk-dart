@@ -1,8 +1,8 @@
 # AgentOS SDK for Dart
 
-A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, and
-AppKit endpoints. Use the unified `AgentOSSDK` to avoid managing tokens
-manually.
+A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, AppKit,
+and LlmKit chat endpoints. Use the unified `AgentOSSDK` to avoid managing
+tokens manually.
 
 ## Features
 
@@ -10,6 +10,8 @@ manually.
 - AgentKit API: agent CRUD, session init,
   chat stream/simple, history, stop/clear, callbacks)
 - AppKit API: bundle registration and SSE subscription
+- LlmKit API: model listing and OpenAI-compatible chat client at
+  `/llmkit/text`
 
 ## Getting Started
 
@@ -92,6 +94,34 @@ final sdk = AgentOSSDK(
 );
 ```
 
+### Use LlmKit Chat
+
+`agentos_sdk` re-exports `package:dart_openai_sdk/dart_openai_sdk.dart`, so you
+can use OpenAI chat request/response types directly.
+
+```dart
+import 'package:agentos_sdk/agentos_sdk.dart';
+
+final sdk = AgentOSSDK(baseUrl: 'http://localhost:20261');
+
+final models = await sdk.llmkit.listModels();
+print(models.map((model) => model.alias).toList());
+
+final completion = await sdk.llmkit.chat.create(
+  model: 'qwen3-1.7b',
+  messages: <OpenAIChatCompletionChoiceMessageModel>[
+    OpenAIChatCompletionChoiceMessageModel(
+      role: OpenAIChatMessageRole.user,
+      content: <OpenAIChatCompletionChoiceMessageContentItemModel>[
+        OpenAIChatCompletionChoiceMessageContentItemModel.text('Hello.'),
+      ],
+    ),
+  ],
+);
+
+print(completion.choices.first.message.content?.first.text);
+```
+
 ## API Reference
 
 ### AgentOSSDK
@@ -112,6 +142,7 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit endpoints with internal token handling. |
 | `agentkit` | `AgentKitModule` | AgentKit endpoints with internal token handling. |
+| `llmkit` | `LlmKitModule` | LlmKit model listing and preconfigured chat client. |
 | `dispose()` | `Future<void>` | Releases SDK resources and cancels active AppKit subscription. |
 
 ### AgentOSModule (`sdk.agentos`)
@@ -141,6 +172,13 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `clear({required String sessionId})` | `sessionId` | Clears session data. |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | Sends tool callback results. |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | Sends streaming tool callback results. |
+
+### LlmKitModule (`sdk.llmkit`)
+
+| Method/Property | Type | Description |
+| --- | --- | --- |
+| `listModels()` | `Future<List<LlmModelInfo>>` | Fetches available LLM models from `/llmkit/models`. |
+| `chat` | `LlmKitChatClient` | Preconfigured OpenAI-compatible chat client using `{baseUrl}/llmkit/text`. |
 
 ### AgentOSEventHandler
 
@@ -241,9 +279,11 @@ class MyHandler extends AgentMessageHandler {
 
 - Call `agentos.registerBundle` before using `agentkit`/`agentos` APIs that
   require a token.
-- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`) for
+- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `llmkit`) for
   clearer separation of API areas.
 - AgentKit endpoints are exposed under `/agentkit/*`.
+- `sdk.llmkit.chat` currently exposes chat only and targets
+  `/llmkit/text/chat/completions` by default.
 - External integrations should use only `package:agentos_sdk/agentos_sdk.dart`
   and avoid importing `package:agentos_sdk/src/...`.
 

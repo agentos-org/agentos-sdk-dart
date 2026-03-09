@@ -44,8 +44,8 @@ void main() {
 
       expect(task.extraSystemPrompt, equals('safety first'));
       expect(task.llmConfig, isNotNull);
-      expect(task.llmConfig!.supportsToolCalling, isTrue);
-      expect(task.llmConfig!.supportsDeepThinking, isTrue);
+      expect(task.llmConfig!.supportsToolCall, isTrue);
+      expect(task.llmConfig!.supportsReasoning, isTrue);
       expect(task.llmConfig!.contextWindowSize, equals(32768));
     });
 
@@ -283,6 +283,15 @@ void main() {
       expect(models[1].alias, equals('gpt-4.1'));
       expect(models[1].isRemote, isTrue);
       expect(models[1].isCustom, isTrue);
+    });
+
+    test('configures llmkit chat to use the text endpoint by default', () {
+      final sdk = AgentOSSDK(baseUrl: 'http://fake.local:20261');
+
+      expect(
+        sdk.llmkit.chat.baseUrl,
+        equals('http://fake.local:20261/llmkit/text'),
+      );
     });
   });
 

@@ -71,10 +71,8 @@ LLMConfig _$LLMConfigFromJson(Map<String, dynamic> json) => LLMConfig(
   maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 4096,
   contextWindowSize: (json['contextWindowSize'] as num?)?.toInt(),
   topP: (json['topP'] as num?)?.toDouble() ?? 1.0,
-  supportsToolCalling:
-      _readSupportsToolCalling(json, 'supportsToolCall') as bool? ?? true,
-  supportsDeepThinking:
-      _readSupportsDeepThinking(json, 'supportsReasoning') as bool? ?? false,
+  supportsToolCall: json['supportsToolCall'] as bool? ?? true,
+  supportsReasoning: json['supportsReasoning'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$LLMConfigToJson(LLMConfig instance) => <String, dynamic>{
@@ -86,8 +84,8 @@ Map<String, dynamic> _$LLMConfigToJson(LLMConfig instance) => <String, dynamic>{
   'maxTokens': instance.maxTokens,
   'contextWindowSize': ?instance.contextWindowSize,
   'topP': instance.topP,
-  'supportsToolCall': instance.supportsToolCalling,
-  'supportsReasoning': instance.supportsDeepThinking,
+  'supportsToolCall': instance.supportsToolCall,
+  'supportsReasoning': instance.supportsReasoning,
 };
 
 ReflectPrompt _$ReflectPromptFromJson(Map<String, dynamic> json) =>
