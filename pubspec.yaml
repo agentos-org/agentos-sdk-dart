@@ -8,10 +8,10 @@ environment:
 
 dependencies:
   json_annotation: ^4.9.0
-  dio: 5.8.0+1
+  dio: 5.9.0
   unique_id_dart: ^1.0.0
   opentool_dart: ^2.0.0
-  dart_openai_sdk: ^6.1.0
+  dart_openai_sdk: ^6.1.2
   opentool_daemon:
     path: ../opentool-hub/opentool-util-daemon
 
