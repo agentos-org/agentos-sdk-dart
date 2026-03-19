@@ -95,7 +95,7 @@ class LLMConfig {
     this.contextWindowSize,
     this.topP = 1.0,
     this.supportsToolCall = true,
-    this.supportsReasoning = false,
+    this.supportsReasoning = true,
   });
 
   factory LLMConfig.fromJson(Map<String, dynamic> json) =>

@@ -12,8 +12,11 @@ class AppKitClient {
 
   final ApiClient _apiClient;
 
-  Future<AccessToken> registerBundle({required String bundleId}) async {
-    final bundle = AppBundle(bundleId: bundleId);
+  Future<AccessToken> registerBundle({
+    required String bundleId,
+    String? appGroupId,
+  }) async {
+    final bundle = AppBundle(bundleId: bundleId, appGroupId: appGroupId);
     final Response<dynamic> response = await _apiClient.dio.post(
       '/appkit/register',
       data: bundle.toJson(),

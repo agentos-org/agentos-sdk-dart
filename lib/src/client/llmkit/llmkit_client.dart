@@ -5,6 +5,16 @@ import 'package:dio/dio.dart';
 
 import '../../utils/api_client.dart';
 
+enum LlmModelCategory {
+  textGeneration,
+  visionLanguage,
+  embedding,
+  textToSpeech,
+  speechToText,
+  audioTextToText,
+  unknown,
+}
+
 class LlmModelInfo {
   LlmModelInfo({
     required this.id,
@@ -25,6 +35,49 @@ class LlmModelInfo {
   final int? contextWindowSize;
   final bool isRemote;
   final bool isCustom;
+
+  /// Raw model type returned by AgentOS API.
+  ///
+  /// Current upstream values include `text`, `textGeneration`,
+  /// `image_text_to_text`, `imageTextToText`, `embedding`,
+  /// `text_to_speech`, and `audio_text_to_text`.
+  String get rawType => type;
+
+  /// Normalized model category to absorb upstream naming variants.
+  LlmModelCategory get category {
+    final normalizedType = type.trim().toLowerCase();
+    if (normalizedType.isEmpty) {
+      return LlmModelCategory.unknown;
+    }
+    if (normalizedType == 'text' || normalizedType == 'textgeneration') {
+      return LlmModelCategory.textGeneration;
+    }
+    if (normalizedType == 'image_text_to_text' ||
+        normalizedType == 'imagetexttotext') {
+      return LlmModelCategory.visionLanguage;
+    }
+    if (normalizedType.contains('embedding')) {
+      return LlmModelCategory.embedding;
+    }
+    if (normalizedType == 'text_to_speech' || normalizedType == 'tts') {
+      return LlmModelCategory.textToSpeech;
+    }
+    if (normalizedType == 'speech_to_text' ||
+        normalizedType == 'audio_text_to_text' ||
+        normalizedType == 'asr') {
+      return normalizedType == 'audio_text_to_text'
+          ? LlmModelCategory.audioTextToText
+          : LlmModelCategory.speechToText;
+    }
+    return LlmModelCategory.unknown;
+  }
+
+  bool get supportsTextInference =>
+      category == LlmModelCategory.textGeneration ||
+      category == LlmModelCategory.visionLanguage ||
+      category == LlmModelCategory.unknown;
+
+  bool get isVisionLanguage => category == LlmModelCategory.visionLanguage;
 
   factory LlmModelInfo.fromJson(Map<String, dynamic> json) {
     return LlmModelInfo(
@@ -59,6 +112,10 @@ class LlmKitClient {
   final ApiClient _apiClient;
   late final LlmKitChatClient chat = LlmKitChatClient._(_apiClient);
 
+  /// Returns models exposed by `/llmkit/models`.
+  ///
+  /// Upstream currently returns all models that support text inference,
+  /// including text-only and vision-language models.
   Future<List<LlmModelInfo>> listModels() async {
     final Response<dynamic> response = await _apiClient.dio.get(
       '/llmkit/models',

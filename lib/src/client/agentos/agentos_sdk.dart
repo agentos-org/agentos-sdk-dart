@@ -12,14 +12,15 @@ import '../agentkit/capability_dto.dart';
 import '../agentkit/common_dto.dart';
 import '../agentkit/messages_dto.dart';
 import '../agentkit/sessions_dto.dart';
+import 'agentos_connection_event.dart';
 import 'agentos_event_handler.dart';
 import '../../utils/api_client.dart';
 import '../appkit/appkit_client.dart';
 import '../appkit/dto.dart';
+import '../cronkit/cronkit_client.dart';
+import '../cronkit/dto.dart';
 import '../systemkit/dto.dart';
 import '../systemkit/systemkit_client.dart';
-import '../intentkit/dto.dart';
-import '../intentkit/intentkit_client.dart';
 import '../llmkit/llmkit_client.dart';
 import '../toolkit/toolkit_client.dart';
 
@@ -43,18 +44,30 @@ class AgentOSSDK {
   );
   late final AgentKitClient _agentKit = AgentKitClient(apiClient: _apiClient);
   late final AppKitClient _appKit = AppKitClient(apiClient: _apiClient);
-  late final IntentKitClient _intentKit = IntentKitClient(
-    apiClient: _apiClient,
-  );
+  late final CronKitClient _cronKit = CronKitClient(apiClient: _apiClient);
   late final LlmKitClient _llmKit = LlmKitClient(apiClient: _apiClient);
   late final ToolKitClient _toolKit = ToolKitClient(apiClient: _apiClient);
-  String? _token;
+  final Map<_AppAuthCacheKey, String> _appTokens = <_AppAuthCacheKey, String>{};
+  final Map<String, _AppAuthCacheKey> _tokenContexts =
+      <String, _AppAuthCacheKey>{};
+  final Map<_AppAuthCacheKey, Future<String>> _refreshingTokens =
+      <_AppAuthCacheKey, Future<String>>{};
+  final StreamController<AgentOSSubscribeConnectionEvent>
+  _agentOsConnectionEvents =
+      StreamController<AgentOSSubscribeConnectionEvent>.broadcast();
+  _AppAuthCacheKey? _activeAppAuthKey;
   StreamSubscription<AgentOSEvent>? _agentOsSubscription;
+  Future<void>? _agentOsReconnectTask;
   AgentOSEventHandler? _agentOsEventHandler;
+  AgentOSSubscribeOptions _agentOsSubscribeOptions =
+      const AgentOSSubscribeOptions();
+  AgentOSSubscribeConnectionStatus? _agentOsConnectionStatus;
+  bool _shouldMaintainAgentOsSubscription = false;
+  bool _isDisposed = false;
 
   late final AgentOSModule agentos = AgentOSModule._(this);
   late final AgentKitModule agentkit = AgentKitModule._(this);
-  late final IntentKitModule intentkit = IntentKitModule._(this);
+  late final CronKitModule cronkit = CronKitModule._(this);
   late final LlmKitModule llmkit = LlmKitModule._(this);
   late final ToolKitModule toolkit = ToolKitModule._(this);
 
@@ -114,17 +127,189 @@ class AgentOSSDK {
     );
   }
 
-  String _requireToken() {
-    final token = _token;
+  Future<_AppAuthContext> _requireAppAuthContext() async {
+    final key = _activeAppAuthKey;
+    if (key == null) {
+      throw StateError(
+        'Bearer token is not set. Call agentos.registerBundle() first.',
+      );
+    }
+    var token = _appTokens[key];
+    if ((token == null || token.isEmpty) && _refreshingTokens[key] != null) {
+      token = await _refreshingTokens[key];
+    }
     if (token == null || token.isEmpty) {
       throw StateError(
         'Bearer token is not set. Call agentos.registerBundle() first.',
       );
     }
-    return token;
+    return _AppAuthContext(key: key, token: token);
+  }
+
+  void _cacheAppToken(
+    _AppAuthCacheKey key,
+    String token, {
+    required bool activate,
+  }) {
+    final previousToken = _appTokens[key];
+    if (previousToken != null && previousToken != token) {
+      _tokenContexts.remove(previousToken);
+    }
+    _appTokens[key] = token;
+    _tokenContexts[token] = key;
+    if (activate) {
+      _activeAppAuthKey = key;
+    }
+  }
+
+  void _clearAppToken(_AppAuthCacheKey key, {String? expectedToken}) {
+    final currentToken = _appTokens[key];
+    if (expectedToken != null &&
+        currentToken != null &&
+        currentToken != expectedToken) {
+      _tokenContexts.remove(expectedToken);
+      return;
+    }
+    final removedToken = _appTokens.remove(key);
+    if (removedToken != null) {
+      _tokenContexts.remove(removedToken);
+    }
+    if (expectedToken != null) {
+      _tokenContexts.remove(expectedToken);
+    }
+  }
+
+  _AppAuthCacheKey? _contextForToken(String token) {
+    return _tokenContexts[token];
+  }
+
+  Future<String> _refreshAppToken(
+    _AppAuthContext context, {
+    required String failedToken,
+  }) {
+    final key = _contextForToken(failedToken) ?? context.key;
+    final currentToken = _appTokens[key];
+    if (currentToken != null &&
+        currentToken.isNotEmpty &&
+        currentToken != failedToken) {
+      return Future<String>.value(currentToken);
+    }
+
+    final inflight = _refreshingTokens[key];
+    if (inflight != null) {
+      return inflight;
+    }
+
+    _clearAppToken(key, expectedToken: failedToken);
+    final refresh = () async {
+      final info = await _appKit.registerBundle(
+        bundleId: key.bundleId,
+        appGroupId: key.appGroupId,
+      );
+      _cacheAppToken(key, info.token, activate: false);
+      return info.token;
+    }();
+    _refreshingTokens[key] = refresh;
+    return refresh.whenComplete(() {
+      _refreshingTokens.remove(key);
+    });
+  }
+
+  bool _shouldRecoverAppAuth(Object error) {
+    if (error is! DioException) {
+      return false;
+    }
+    final statusCode = error.response?.statusCode;
+    if (statusCode == 401 || statusCode == 403) {
+      return true;
+    }
+    final errorText = _collectErrorText(error).toLowerCase();
+    if (errorText.isEmpty) {
+      return false;
+    }
+    return errorText.contains('invalid app token') ||
+        errorText.contains('token expired') ||
+        errorText.contains('unauthorized') ||
+        errorText.contains('forbidden') ||
+        errorText.contains('auth');
+  }
+
+  String _collectErrorText(Object? value) {
+    if (value == null) {
+      return '';
+    }
+    if (value is DioException) {
+      return <String>[
+        if (value.message != null) value.message!,
+        _collectErrorText(value.error),
+        _collectErrorText(value.response?.data),
+      ].where((text) => text.isNotEmpty).join(' ');
+    }
+    if (value is Map) {
+      return value.values
+          .map(_collectErrorText)
+          .where((text) => text.isNotEmpty)
+          .join(' ');
+    }
+    if (value is Iterable) {
+      return value
+          .map(_collectErrorText)
+          .where((text) => text.isNotEmpty)
+          .join(' ');
+    }
+    return value.toString();
+  }
+
+  Future<T> _withAppAuthRetry<T>(
+    Future<T> Function(String bearerToken) action,
+  ) async {
+    final requestContext = await _requireAppAuthContext();
+    try {
+      return await action(requestContext.token);
+    } catch (error) {
+      if (!_shouldRecoverAppAuth(error)) {
+        rethrow;
+      }
+      final refreshedToken = await _refreshAppToken(
+        requestContext,
+        failedToken: requestContext.token,
+      );
+      return action(refreshedToken);
+    }
   }
 
   bool get isSubscribed => _agentOsSubscription != null;
+
+  Stream<AgentOSSubscribeConnectionEvent> get agentOsConnectionEvents =>
+      _agentOsConnectionEvents.stream;
+
+  AgentOSSubscribeConnectionStatus? get agentOsConnectionStatus =>
+      _agentOsConnectionStatus;
+
+  void _emitAgentOsConnectionEvent(
+    AgentOSSubscribeConnectionStatus status, {
+    int attempt = 0,
+    Exception? error,
+  }) {
+    _agentOsConnectionStatus = status;
+    if (_agentOsConnectionEvents.isClosed) {
+      return;
+    }
+    _agentOsConnectionEvents.add(
+      AgentOSSubscribeConnectionEvent(
+        status: status,
+        attempt: attempt,
+        error: error,
+      ),
+    );
+  }
+
+  Exception _asException(Object error) {
+    if (error is Exception) {
+      return error;
+    }
+    return Exception(error.toString());
+  }
 
   Future<void> _cancelAgentOsSubscription() async {
     final subscription = _agentOsSubscription;
@@ -135,8 +320,12 @@ class AgentOSSDK {
   }
 
   Future<void> dispose() async {
+    _isDisposed = true;
+    _shouldMaintainAgentOsSubscription = false;
     await _cancelAgentOsSubscription();
     _agentOsEventHandler = null;
+    await _agentOsReconnectTask;
+    await _agentOsConnectionEvents.close();
   }
 }
 
@@ -155,19 +344,52 @@ class AgentOSModule {
   Future<Readiness> getReady() => _client._systemKit.getReady();
 
   /// Registers an app bundle and stores the returned bearer token internally.
-  Future<void> registerBundle({required String bundleId}) async {
-    final info = await _client._appKit.registerBundle(bundleId: bundleId);
-    _client._token = info.token;
+  Future<AccessToken> registerBundle({
+    required String bundleId,
+    String? appGroupId,
+  }) async {
+    final key = _AppAuthCacheKey(bundleId: bundleId, appGroupId: appGroupId);
+    final info = await _client._appKit.registerBundle(
+      bundleId: bundleId,
+      appGroupId: appGroupId,
+    );
+    _client._cacheAppToken(key, info.token, activate: true);
+    return info;
   }
 
   /// Subscribes to AppKit SSE events using a handler implementation.
-  Future<void> subscribe(AgentOSEventHandler handler) async {
+  Stream<AgentOSSubscribeConnectionEvent> get connectionEvents =>
+      _client.agentOsConnectionEvents;
+
+  AgentOSSubscribeConnectionStatus? get connectionStatus =>
+      _client.agentOsConnectionStatus;
+
+  Future<void> subscribe(
+    AgentOSEventHandler handler, {
+    AgentOSSubscribeOptions options = const AgentOSSubscribeOptions(),
+  }) async {
     _client._agentOsEventHandler = handler;
-    if (_client._agentOsSubscription != null) {
+    _client._agentOsSubscribeOptions = options;
+    _client._shouldMaintainAgentOsSubscription = true;
+    _client._isDisposed = false;
+    if (_client._agentOsSubscription != null ||
+        _client._agentOsReconnectTask != null) {
       return;
     }
-    final stream = await _client._appKit.subscribe(
-      bearerToken: _client._requireToken(),
+    try {
+      await _openSubscription(isReconnect: false);
+    } catch (error) {
+      _client._emitAgentOsConnectionEvent(
+        AgentOSSubscribeConnectionStatus.disconnected,
+        error: _client._asException(error),
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> _openSubscription({required bool isReconnect}) async {
+    final stream = await _client._withAppAuthRetry(
+      (bearerToken) => _client._appKit.subscribe(bearerToken: bearerToken),
     );
     _client._agentOsSubscription = stream.listen(
       (event) async {
@@ -197,23 +419,218 @@ class AgentOSModule {
         }
       },
       onDone: () async {
-        _client._agentOsSubscription = null;
-        final currentHandler = _client._agentOsEventHandler;
-        if (currentHandler != null) {
-          await currentHandler.onDone();
-        }
+        await _handleSubscriptionClosed();
       },
-      onError: (error) {
-        _client._agentOsSubscription = null;
-        final currentHandler = _client._agentOsEventHandler;
-        if (currentHandler == null) {
-          return;
-        }
-        final exception = error is Exception
-            ? error
-            : Exception(error.toString());
-        currentHandler.onError(exception);
+      onError: (Object error) async {
+        await _handleSubscriptionClosed(error: error);
       },
+      cancelOnError: false,
+    );
+    if (isReconnect) {
+      _client._emitAgentOsConnectionEvent(
+        AgentOSSubscribeConnectionStatus.reconnected,
+      );
+    }
+    _client._emitAgentOsConnectionEvent(
+      AgentOSSubscribeConnectionStatus.connected,
+    );
+  }
+
+  Future<void> _handleSubscriptionClosed({Object? error}) async {
+    _client._agentOsSubscription = null;
+    final currentHandler = _client._agentOsEventHandler;
+    if (currentHandler != null) {
+      if (error == null) {
+        await currentHandler.onDone();
+      } else {
+        await currentHandler.onError(_client._asException(error));
+      }
+    }
+    if (!_client._shouldMaintainAgentOsSubscription || _client._isDisposed) {
+      return;
+    }
+    if (!_client._agentOsSubscribeOptions.autoReconnect) {
+      _client._emitAgentOsConnectionEvent(
+        AgentOSSubscribeConnectionStatus.disconnected,
+        error: error == null ? null : _client._asException(error),
+      );
+      return;
+    }
+    _startReconnectLoop(initialError: error);
+  }
+
+  void _startReconnectLoop({Object? initialError}) {
+    if (_client._agentOsReconnectTask != null) {
+      return;
+    }
+    final options = _client._agentOsSubscribeOptions;
+    final initialException = initialError == null
+        ? null
+        : _client._asException(initialError);
+    _client._emitAgentOsConnectionEvent(
+      AgentOSSubscribeConnectionStatus.reconnecting,
+      attempt: 1,
+      error: initialException,
+    );
+    _client._agentOsReconnectTask =
+        () async {
+          Exception? lastError = initialException;
+          for (
+            var attempt = 1;
+            attempt <= options.maxReconnectAttempts;
+            attempt++
+          ) {
+            if (!_client._shouldMaintainAgentOsSubscription ||
+                _client._isDisposed) {
+              break;
+            }
+            if (attempt > 1) {
+              await Future<void>.delayed(options.reconnectDelay);
+            }
+            try {
+              await _openSubscription(isReconnect: true);
+              return;
+            } catch (error) {
+              lastError = _client._asException(error);
+            }
+          }
+          if (_client._shouldMaintainAgentOsSubscription &&
+              !_client._isDisposed) {
+            _client._emitAgentOsConnectionEvent(
+              AgentOSSubscribeConnectionStatus.disconnected,
+              attempt: options.maxReconnectAttempts,
+              error: lastError,
+            );
+          }
+        }().whenComplete(() {
+          _client._agentOsReconnectTask = null;
+        });
+  }
+}
+
+class CronKitModule {
+  CronKitModule._(this._client);
+
+  final AgentOSSDK _client;
+
+  Future<CronTask> getTask({required String cronId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._cronKit.getTask(bearerToken: bearerToken, cronId: cronId),
+    );
+  }
+
+  Future<List<CronTaskListItem>> listTasks({
+    bool? enabled,
+    int? offset,
+    int? limit,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._cronKit.listTasks(
+        bearerToken: bearerToken,
+        enabled: enabled,
+        offset: offset,
+        limit: limit,
+      ),
+    );
+  }
+
+  Future<CronTask> createTask({required CronTaskCreateRequest request}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._cronKit.createTask(
+        bearerToken: bearerToken,
+        request: request,
+      ),
+    );
+  }
+
+  Future<CronTask> updateTask({required CronTaskUpdateRequest request}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._cronKit.updateTask(
+        bearerToken: bearerToken,
+        request: request,
+      ),
+    );
+  }
+
+  Future<CronTaskDeleteResult> deleteTask({required String cronId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._cronKit.deleteTask(bearerToken: bearerToken, cronId: cronId),
+    );
+  }
+
+  Future<CronTask> enableTask({required String cronId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._cronKit.enableTask(bearerToken: bearerToken, cronId: cronId),
+    );
+  }
+
+  Future<CronTask> disableTask({required String cronId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._cronKit.disableTask(
+        bearerToken: bearerToken,
+        cronId: cronId,
+      ),
+    );
+  }
+
+  Future<CronRun> runTaskNow({required String cronId, DateTime? scheduledAt}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._cronKit.runTaskNow(
+        bearerToken: bearerToken,
+        cronId: cronId,
+        scheduledAt: scheduledAt,
+      ),
+    );
+  }
+
+  Future<CronRun> getRun({required String runId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._cronKit.getRun(bearerToken: bearerToken, runId: runId),
+    );
+  }
+
+  Future<List<CronRunListItem>> listRuns({
+    String? cronId,
+    DateTime? after,
+    DateTime? before,
+    int? offset,
+    int? limit,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._cronKit.listRuns(
+        bearerToken: bearerToken,
+        cronId: cronId,
+        after: after,
+        before: before,
+        offset: offset,
+        limit: limit,
+      ),
+    );
+  }
+
+  Future<List<CronRunMessage>> listRunMessages({
+    required String runId,
+    int? offset,
+    int? limit,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._cronKit.listRunMessages(
+        bearerToken: bearerToken,
+        runId: runId,
+        offset: offset,
+        limit: limit,
+      ),
+    );
+  }
+
+  Future<CronDeleteRunResult> deleteRun({required String runId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._cronKit.deleteRun(bearerToken: bearerToken, runId: runId),
     );
   }
 }
@@ -225,17 +642,19 @@ class AgentKitModule {
 
   /// Retrieves an agent by agentId.
   Future<Map<String, dynamic>> getAgent({required String agentId}) {
-    return _client._agentKit.getAgent(
-      bearerToken: _client._requireToken(),
-      agentId: agentId,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.getAgent(
+        bearerToken: bearerToken,
+        agentId: agentId,
+      ),
     );
   }
 
   /// Creates an agent with the provided payload.
   Future<Map<String, dynamic>> createAgent({required Agent agent}) {
-    return _client._agentKit.createAgent(
-      bearerToken: _client._requireToken(),
-      agent: agent,
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._agentKit.createAgent(bearerToken: bearerToken, agent: agent),
     );
   }
 
@@ -244,18 +663,22 @@ class AgentKitModule {
     required String agentId,
     required Agent agent,
   }) {
-    return _client._agentKit.updateAgent(
-      bearerToken: _client._requireToken(),
-      agentId: agentId,
-      agent: agent,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.updateAgent(
+        bearerToken: bearerToken,
+        agentId: agentId,
+        agent: agent,
+      ),
     );
   }
 
   /// Deletes an agent by agentId.
   Future<Map<String, dynamic>> deleteAgent({required String agentId}) {
-    return _client._agentKit.deleteAgent(
-      bearerToken: _client._requireToken(),
-      agentId: agentId,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.deleteAgent(
+        bearerToken: bearerToken,
+        agentId: agentId,
+      ),
     );
   }
 
@@ -264,10 +687,12 @@ class AgentKitModule {
     String? agentId,
     Capability? capability,
   }) {
-    return _client._agentKit.initSession(
-      bearerToken: _client._requireToken(),
-      agentId: agentId,
-      capability: capability,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.initSession(
+        bearerToken: bearerToken,
+        agentId: agentId,
+        capability: capability,
+      ),
     );
   }
 
@@ -275,9 +700,11 @@ class AgentKitModule {
   Future<Map<String, dynamic>> initSimple({
     required SimpleCapability simpleCapability,
   }) {
-    return _client._agentKit.initSimple(
-      bearerToken: _client._requireToken(),
-      simpleCapability: simpleCapability,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.initSimple(
+        bearerToken: bearerToken,
+        simpleCapability: simpleCapability,
+      ),
     );
   }
 
@@ -287,10 +714,12 @@ class AgentKitModule {
     UserTask userTask,
     AgentMessageHandler agentMessageHandler,
   ) async {
-    final stream = await _client._agentKit.chat(
-      bearerToken: _client._requireToken(),
-      sessionId: session.sessionId,
-      userTask: userTask,
+    final stream = await _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.chat(
+        bearerToken: bearerToken,
+        sessionId: session.sessionId,
+        userTask: userTask,
+      ),
     );
     stream.listen(
       (event) async {
@@ -353,18 +782,22 @@ class AgentKitModule {
     required String sessionId,
     required UserTask userTask,
   }) {
-    return _client._agentKit.chatSimple(
-      bearerToken: _client._requireToken(),
-      sessionId: sessionId,
-      userTask: userTask,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.chatSimple(
+        bearerToken: bearerToken,
+        sessionId: sessionId,
+        userTask: userTask,
+      ),
     );
   }
 
   /// Retrieves message history for a session via AgentKit.
   Future<List<dynamic>> history({required String sessionId}) {
-    return _client._agentKit.history(
-      bearerToken: _client._requireToken(),
-      sessionId: sessionId,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.history(
+        bearerToken: bearerToken,
+        sessionId: sessionId,
+      ),
     );
   }
 
@@ -373,18 +806,22 @@ class AgentKitModule {
     required String sessionId,
     String? taskId,
   }) {
-    return _client._agentKit.stop(
-      bearerToken: _client._requireToken(),
-      sessionId: sessionId,
-      taskId: taskId,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.stop(
+        bearerToken: bearerToken,
+        sessionId: sessionId,
+        taskId: taskId,
+      ),
     );
   }
 
   /// Clears session data via AgentKit.
   Future<Map<String, dynamic>> clear({required String sessionId}) {
-    return _client._agentKit.clear(
-      bearerToken: _client._requireToken(),
-      sessionId: sessionId,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.clear(
+        bearerToken: bearerToken,
+        sessionId: sessionId,
+      ),
     );
   }
 
@@ -393,10 +830,12 @@ class AgentKitModule {
     required String sessionId,
     required ToolReturn toolReturn,
   }) {
-    return _client._agentKit.callback(
-      bearerToken: _client._requireToken(),
-      sessionId: sessionId,
-      toolReturn: toolReturn,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.callback(
+        bearerToken: bearerToken,
+        sessionId: sessionId,
+        toolReturn: toolReturn,
+      ),
     );
   }
 
@@ -405,27 +844,24 @@ class AgentKitModule {
     required String sessionId,
     required EventToolReturn eventToolReturn,
   }) {
-    return _client._agentKit.streamCallback(
-      bearerToken: _client._requireToken(),
-      sessionId: sessionId,
-      eventToolReturn: eventToolReturn,
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.streamCallback(
+        bearerToken: bearerToken,
+        sessionId: sessionId,
+        eventToolReturn: eventToolReturn,
+      ),
     );
   }
 
   Future<void> _callback(Session session, ToolReturn toolReturn) async {
-    await _client._agentKit.callback(
-      bearerToken: _client._requireToken(),
-      sessionId: session.sessionId,
-      toolReturn: toolReturn,
-    );
+    await callback(sessionId: session.sessionId, toolReturn: toolReturn);
   }
 
   Future<void> _streamCallback(
     Session session,
     EventToolReturn eventToolReturn,
   ) async {
-    await _client._agentKit.streamCallback(
-      bearerToken: _client._requireToken(),
+    await streamCallback(
       sessionId: session.sessionId,
       eventToolReturn: eventToolReturn,
     );
@@ -444,44 +880,6 @@ class AgentKitModule {
   bool _readBoolFlag(Map<String, dynamic> json, String key) {
     final value = json[key];
     return value is bool && value;
-  }
-}
-
-class IntentKitModule {
-  IntentKitModule._(this._client);
-
-  final AgentOSSDK _client;
-
-  Future<IntentKitJobHandle> submitRaw(IntentKitSubmitRawRequest request) {
-    return _client._intentKit.submitRaw(
-      bearerToken: _client._requireToken(),
-      request: request,
-    );
-  }
-
-  Future<IntentKitJobHandle> submitIntent(
-    IntentKitSubmitIntentRequest request,
-  ) {
-    return _client._intentKit.submitIntent(
-      bearerToken: _client._requireToken(),
-      request: request,
-    );
-  }
-
-  Future<IntentKitJobHandle> confirmJob(IntentKitConfirmJobRequest request) {
-    return _client._intentKit.confirmJob(
-      bearerToken: _client._requireToken(),
-      request: request,
-    );
-  }
-
-  Future<IntentKitSuggestNextActionResponse> suggestNextAction(
-    IntentKitSuggestNextActionRequest request,
-  ) {
-    return _client._intentKit.suggestNextAction(
-      bearerToken: _client._requireToken(),
-      request: request,
-    );
   }
 }
 
@@ -519,4 +917,28 @@ class ToolKitModule {
       snapshot: snapshot,
     );
   }
+}
+
+class _AppAuthContext {
+  const _AppAuthContext({required this.key, required this.token});
+
+  final _AppAuthCacheKey key;
+  final String token;
+}
+
+class _AppAuthCacheKey {
+  const _AppAuthCacheKey({required this.bundleId, required this.appGroupId});
+
+  final String bundleId;
+  final String? appGroupId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _AppAuthCacheKey &&
+        other.bundleId == bundleId &&
+        other.appGroupId == appGroupId;
+  }
+
+  @override
+  int get hashCode => Object.hash(bundleId, appGroupId);
 }

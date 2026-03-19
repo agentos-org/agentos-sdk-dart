@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:agentos_sdk/agentos_sdk.dart';
 import 'package:agentos_sdk/src/client/agentkit/agentkit_client.dart';
 import 'package:agentos_sdk/src/client/appkit/appkit_client.dart';
+import 'package:agentos_sdk/src/client/cronkit/cronkit_client.dart';
 import 'package:agentos_sdk/src/client/systemkit/systemkit_client.dart';
 import 'package:agentos_sdk/src/utils/api_client.dart';
 import 'package:dio/dio.dart';
@@ -75,6 +76,8 @@ void main() {
       final config = LLMConfig(temperature: 0.66);
       final payload = config.toJson();
       expect(payload['temperature'], equals(0.66));
+      expect(payload['supportsToolCall'], isTrue);
+      expect(payload['supportsReasoning'], isTrue);
       expect(payload.containsKey('modelId'), isFalse);
       expect(payload.containsKey('baseUrl'), isFalse);
       expect(payload.containsKey('apiKey'), isFalse);
@@ -172,6 +175,220 @@ void main() {
       expect(handler.welcomeCount, equals(1));
       expect(handler.callAppCount, equals(0));
     });
+
+    test('emits connected after subscribe is established', () async {
+      final interceptor = _ScriptedAppKitInterceptor(
+        subscribePlans: const <_SubscribePlan>[_SubscribePlan.stream()],
+      );
+      final sdk = AgentOSSDK(
+        apiClient: ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+            ..interceptors.add(interceptor),
+        ),
+      );
+      final recorder = _ConnectionEventRecorder(sdk.agentos.connectionEvents);
+
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+      await sdk.agentos.subscribe(_CountingEventHandler());
+
+      await recorder.waitForCount(1);
+
+      expect(
+        recorder.statuses,
+        equals(<AgentOSSubscribeConnectionStatus>[
+          AgentOSSubscribeConnectionStatus.connected,
+        ]),
+      );
+
+      await sdk.dispose();
+      await recorder.dispose();
+      await interceptor.dispose();
+    });
+
+    test(
+      'emits disconnected when passive close happens without auto reconnect',
+      () async {
+        final interceptor = _ScriptedAppKitInterceptor(
+          subscribePlans: const <_SubscribePlan>[_SubscribePlan.stream()],
+        );
+        final sdk = AgentOSSDK(
+          apiClient: ApiClient(
+            dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+              ..interceptors.add(interceptor),
+          ),
+        );
+        final recorder = _ConnectionEventRecorder(sdk.agentos.connectionEvents);
+
+        await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+        await sdk.agentos.subscribe(
+          _CountingEventHandler(),
+          options: const AgentOSSubscribeOptions(autoReconnect: false),
+        );
+        await recorder.waitForCount(1);
+
+        await interceptor.closeStream(0);
+        await recorder.waitForCount(2);
+
+        expect(
+          recorder.statuses,
+          equals(<AgentOSSubscribeConnectionStatus>[
+            AgentOSSubscribeConnectionStatus.connected,
+            AgentOSSubscribeConnectionStatus.disconnected,
+          ]),
+        );
+
+        await sdk.dispose();
+        await recorder.dispose();
+        await interceptor.dispose();
+      },
+    );
+
+    test(
+      'emits reconnecting and reconnected after idle subscribe reconnects',
+      () async {
+        final interceptor = _ScriptedAppKitInterceptor(
+          subscribePlans: const <_SubscribePlan>[
+            _SubscribePlan.stream(),
+            _SubscribePlan.stream(),
+          ],
+        );
+        final sdk = AgentOSSDK(
+          apiClient: ApiClient(
+            dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+              ..interceptors.add(interceptor),
+          ),
+        );
+        final recorder = _ConnectionEventRecorder(sdk.agentos.connectionEvents);
+        final handler = _CountingEventHandler();
+
+        await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+        await sdk.agentos.subscribe(
+          handler,
+          options: const AgentOSSubscribeOptions(
+            reconnectDelay: Duration(milliseconds: 10),
+          ),
+        );
+        await handler.firstWelcome.future.timeout(const Duration(seconds: 2));
+        await recorder.waitForCount(1);
+
+        await interceptor.closeStream(0);
+        await recorder.waitForCount(4);
+
+        expect(
+          recorder.statuses,
+          equals(<AgentOSSubscribeConnectionStatus>[
+            AgentOSSubscribeConnectionStatus.connected,
+            AgentOSSubscribeConnectionStatus.reconnecting,
+            AgentOSSubscribeConnectionStatus.reconnected,
+            AgentOSSubscribeConnectionStatus.connected,
+          ]),
+        );
+        expect(handler.welcomeCount, equals(2));
+
+        await sdk.dispose();
+        await recorder.dispose();
+        await interceptor.dispose();
+      },
+    );
+
+    test('emits disconnected after reconnect attempts are exhausted', () async {
+      final interceptor = _ScriptedAppKitInterceptor(
+        subscribePlans: const <_SubscribePlan>[
+          _SubscribePlan.stream(),
+          _SubscribePlan.networkError(),
+          _SubscribePlan.networkError(),
+        ],
+      );
+      final sdk = AgentOSSDK(
+        apiClient: ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+            ..interceptors.add(interceptor),
+        ),
+      );
+      final recorder = _ConnectionEventRecorder(sdk.agentos.connectionEvents);
+
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+      await sdk.agentos.subscribe(
+        _CountingEventHandler(),
+        options: const AgentOSSubscribeOptions(
+          maxReconnectAttempts: 2,
+          reconnectDelay: Duration(milliseconds: 10),
+        ),
+      );
+      await recorder.waitForCount(1);
+
+      await interceptor.closeStream(0);
+      await recorder.waitForCount(3);
+
+      expect(
+        recorder.statuses,
+        equals(<AgentOSSubscribeConnectionStatus>[
+          AgentOSSubscribeConnectionStatus.connected,
+          AgentOSSubscribeConnectionStatus.reconnecting,
+          AgentOSSubscribeConnectionStatus.disconnected,
+        ]),
+      );
+
+      await sdk.dispose();
+      await recorder.dispose();
+      await interceptor.dispose();
+    });
+
+    test(
+      'refreshes app auth before restoring subscribe after passive close',
+      () async {
+        final interceptor = _ScriptedAppKitInterceptor(
+          subscribePlans: const <_SubscribePlan>[
+            _SubscribePlan.stream(),
+            _SubscribePlan.unauthorized(),
+            _SubscribePlan.stream(),
+          ],
+        );
+        final sdk = AgentOSSDK(
+          apiClient: ApiClient(
+            dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+              ..interceptors.add(interceptor),
+          ),
+        );
+        final recorder = _ConnectionEventRecorder(sdk.agentos.connectionEvents);
+        final handler = _CountingEventHandler();
+
+        await sdk.agentos.registerBundle(
+          bundleId: 'com.demo.app',
+          appGroupId: 'group-a',
+        );
+        await sdk.agentos.subscribe(
+          handler,
+          options: const AgentOSSubscribeOptions(
+            reconnectDelay: Duration(milliseconds: 10),
+          ),
+        );
+        await recorder.waitForCount(1);
+
+        await interceptor.closeStream(0);
+        await recorder.waitForCount(4);
+
+        expect(
+          recorder.statuses,
+          equals(<AgentOSSubscribeConnectionStatus>[
+            AgentOSSubscribeConnectionStatus.connected,
+            AgentOSSubscribeConnectionStatus.reconnecting,
+            AgentOSSubscribeConnectionStatus.reconnected,
+            AgentOSSubscribeConnectionStatus.connected,
+          ]),
+        );
+        expect(interceptor.registerCount, equals(2));
+        expect(
+          interceptor.subscribeTokens,
+          equals(<String>['token-v1', 'token-v1', 'token-v2']),
+        );
+        expect(handler.welcomeCount, equals(2));
+
+        await sdk.dispose();
+        await recorder.dispose();
+        await interceptor.dispose();
+      },
+    );
   });
 
   group('SystemKitClient', () {
@@ -265,24 +482,29 @@ void main() {
   });
 
   group('LlmKitModule', () {
-    test('lists available text models from /llmkit/models', () async {
+    test('lists available inference models from /llmkit/models', () async {
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
         ..interceptors.add(_LlmKitInterceptor());
       final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
 
       final models = await sdk.llmkit.listModels();
 
-      expect(models.length, equals(2));
+      expect(models.length, equals(3));
       expect(models.first.id, equals('qwen3-8b'));
       expect(models.first.type, equals('textGeneration'));
+      expect(models.first.category, equals(LlmModelCategory.textGeneration));
       expect(models.first.alias, equals('qwen3-8b'));
       expect(models.first.contextWindowSize, equals(8192));
+      expect(models.first.supportsTextInference, isTrue);
       expect(models.first.isRemote, isFalse);
-      expect(models[1].id, equals('remote-gpt'));
-      expect(models[1].name, equals('gpt-4.1'));
-      expect(models[1].alias, equals('gpt-4.1'));
-      expect(models[1].isRemote, isTrue);
-      expect(models[1].isCustom, isTrue);
+      expect(models[1].id, equals('qwen2.5-vl-7b'));
+      expect(models[1].category, equals(LlmModelCategory.visionLanguage));
+      expect(models[1].isVisionLanguage, isTrue);
+      expect(models[2].id, equals('remote-gpt'));
+      expect(models[2].name, equals('gpt-4.1'));
+      expect(models[2].alias, equals('gpt-4.1'));
+      expect(models[2].isRemote, isTrue);
+      expect(models[2].isCustom, isTrue);
     });
 
     test('configures llmkit chat to use the text endpoint by default', () {
@@ -348,9 +570,15 @@ void main() {
         ..interceptors.add(interceptor);
       final client = AppKitClient(apiClient: ApiClient(dio: dio));
 
-      final token = await client.registerBundle(bundleId: 'com.demo.app');
+      final token = await client.registerBundle(
+        bundleId: 'com.demo.app',
+        appGroupId: 'com.demo.group',
+      );
       expect(token.token, equals('sk-demo'));
+      expect(token.bundleId, equals('com.demo.app'));
+      expect(token.appGroupId, equals('com.demo.group'));
       expect(interceptor.lastBundleId, equals('com.demo.app'));
+      expect(interceptor.lastAppGroupId, equals('com.demo.group'));
 
       final events = await (await client.subscribe(
         bearerToken: token.token,
@@ -363,6 +591,284 @@ void main() {
       );
       expect(events.first.data, contains('bundleId'));
     });
+  });
+
+  group('CronKitClient', () {
+    test('manages cron tasks and runs through sdk module', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(_CronKitInterceptor());
+      final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+
+      final registration = await sdk.agentos.registerBundle(
+        bundleId: 'com.demo.app',
+        appGroupId: 'com.demo.group',
+      );
+      expect(registration.token, equals('sk-demo'));
+
+      final created = await sdk.cronkit.createTask(
+        request: CronTaskCreateRequest(
+          name: 'daily-report',
+          schedule: '0 9 * * *',
+          timezone: 'Asia/Shanghai',
+          spec: CronSpec(
+            systemPrompt: 'system',
+            content: <Content>[
+              Content(type: ContentType.text, message: 'prompt'),
+            ],
+            modelId: 'gpt-4o',
+          ),
+        ),
+      );
+      expect(created.cronId, equals('cron-1'));
+      expect(created.spec.content.single.message, equals('prompt'));
+      expect(created.spec.modelId, equals('gpt-4o'));
+      expect(created.spec.modelName, equals('gpt-4o'));
+
+      final listed = await sdk.cronkit.listTasks(enabled: true, limit: 10);
+      expect(listed, hasLength(1));
+      expect(listed.first.cronId, equals('cron-1'));
+
+      final fetched = await sdk.cronkit.getTask(cronId: 'cron-1');
+      expect(fetched.name, equals('daily-report'));
+      expect(fetched.spec.modelId, equals('gpt-4o'));
+      expect(fetched.spec.modelName, equals('gpt-4o'));
+
+      final updated = await sdk.cronkit.updateTask(
+        request: CronTaskUpdateRequest(
+          cronId: 'cron-1',
+          enabled: false,
+          timezone: 'UTC',
+        ),
+      );
+      expect(updated.enabled, isFalse);
+      expect(updated.timezone, equals('UTC'));
+
+      final disabled = await sdk.cronkit.disableTask(cronId: 'cron-1');
+      expect(disabled.enabled, isFalse);
+      expect(disabled.status, equals('paused'));
+
+      final enabled = await sdk.cronkit.enableTask(cronId: 'cron-1');
+      expect(enabled.enabled, isTrue);
+      expect(enabled.status, equals('active'));
+
+      final run = await sdk.cronkit.runTaskNow(
+        cronId: 'cron-1',
+        scheduledAt: DateTime.utc(2026, 1, 1, 1, 2, 3),
+      );
+      expect(run.runId, equals('run-1'));
+      expect(run.cronId, equals('cron-1'));
+      expect(run.trigger, equals('manual'));
+      expect(run.hasDisplayableResult, isTrue);
+      expect(run.displayMessageId, equals('msg-1'));
+      expect(run.displayText, equals('Daily report ready'));
+
+      final runDetail = await sdk.cronkit.getRun(runId: 'run-1');
+      expect(runDetail.status, equals('success'));
+      expect(runDetail.trigger, equals('scheduler'));
+      expect(runDetail.hasDisplayableResult, isTrue);
+
+      final runs = await sdk.cronkit.listRuns(cronId: 'cron-1', limit: 5);
+      expect(runs, hasLength(1));
+      expect(runs.first.runId, equals('run-1'));
+      expect(runs.first.trigger, equals('scheduler'));
+      expect(runs.first.hasDisplayableResult, isTrue);
+      expect(runs.first.displayText, equals('Daily report ready'));
+
+      final runMessages = await sdk.cronkit.listRunMessages(
+        runId: 'run-1',
+        limit: 10,
+      );
+      expect(runMessages, hasLength(1));
+      expect(runMessages.first.message.content, equals('done'));
+
+      final deletedRun = await sdk.cronkit.deleteRun(runId: 'run-1');
+      expect(deletedRun.deleted, isTrue);
+      expect(deletedRun.runId, equals('run-1'));
+
+      final deleted = await sdk.cronkit.deleteTask(cronId: 'cron-1');
+      expect(deleted.deleted, isTrue);
+      expect(deleted.cronId, equals('cron-1'));
+    });
+
+    test('supports direct cronkit client usage', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(_CronKitInterceptor());
+      final client = CronKitClient(apiClient: ApiClient(dio: dio));
+
+      final tasks = await client.listTasks(
+        bearerToken: 'sk-demo',
+        enabled: true,
+      );
+
+      expect(tasks, hasLength(1));
+      expect(tasks.first.name, equals('daily-report'));
+    });
+  });
+
+  group('AgentOSSDK app auth recovery', () {
+    test('re-registers and retries agentkit request after 401', () async {
+      final interceptor = _AppAuthRecoveryInterceptor();
+      final sdk = AgentOSSDK(
+        apiClient: ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+            ..interceptors.add(interceptor),
+        ),
+      );
+
+      await sdk.agentos.registerBundle(
+        bundleId: 'com.demo.app',
+        appGroupId: 'group-a',
+      );
+
+      final session = await sdk.agentkit.initSession();
+
+      expect(session['sessionId'], equals('sess-recovered'));
+      expect(
+        interceptor.registerCountFor('com.demo.app', 'group-a'),
+        equals(2),
+      );
+      expect(
+        interceptor.tokensUsedFor('/agentkit/initSession'),
+        equals(<String>['token-group-a-v1', 'token-group-a-v2']),
+      );
+    });
+
+    test(
+      're-registers and retries cronkit request after invalid app token text',
+      () async {
+        final interceptor = _AppAuthRecoveryInterceptor();
+        final sdk = AgentOSSDK(
+          apiClient: ApiClient(
+            dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+              ..interceptors.add(interceptor),
+          ),
+        );
+
+        await sdk.agentos.registerBundle(
+          bundleId: 'com.demo.app',
+          appGroupId: 'group-a',
+        );
+
+        final tasks = await sdk.cronkit.listTasks(limit: 10);
+
+        expect(tasks, hasLength(1));
+        expect(
+          interceptor.registerCountFor('com.demo.app', 'group-a'),
+          equals(2),
+        );
+        expect(
+          interceptor.tokensUsedFor('/cronkit/task/list'),
+          equals(<String>['token-group-a-v1', 'token-group-a-v2']),
+        );
+        expect(
+          interceptor.registerRequestsFor('com.demo.app', 'group-a'),
+          equals(<String>['com.demo.app::group-a', 'com.demo.app::group-a']),
+        );
+      },
+    );
+
+    test('deduplicates concurrent refresh for the same app auth key', () async {
+      final interceptor = _AppAuthRecoveryInterceptor();
+      final sdk = AgentOSSDK(
+        apiClient: ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+            ..interceptors.add(interceptor),
+        ),
+      );
+
+      await sdk.agentos.registerBundle(
+        bundleId: 'com.demo.app',
+        appGroupId: 'group-a',
+      );
+
+      final results = await Future.wait(<Future<dynamic>>[
+        sdk.cronkit.listTasks(limit: 10),
+        sdk.cronkit.getTask(cronId: 'cron-1'),
+        sdk.agentkit.initSession(),
+      ]);
+
+      expect(results, hasLength(3));
+      expect(
+        interceptor.registerCountFor('com.demo.app', 'group-a'),
+        equals(2),
+      );
+    });
+
+    test('does not mix tokens across different appGroupId values', () async {
+      final interceptor = _AppAuthRecoveryInterceptor();
+      final sdk = AgentOSSDK(
+        apiClient: ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+            ..interceptors.add(interceptor),
+        ),
+      );
+
+      await sdk.agentos.registerBundle(
+        bundleId: 'com.demo.app',
+        appGroupId: 'group-a',
+      );
+      await sdk.agentos.registerBundle(
+        bundleId: 'com.demo.app',
+        appGroupId: 'group-b',
+      );
+
+      final tasks = await sdk.cronkit.listTasks(limit: 10);
+
+      expect(tasks, hasLength(1));
+      expect(
+        interceptor.registerCountFor('com.demo.app', 'group-a'),
+        equals(1),
+      );
+      expect(
+        interceptor.registerCountFor('com.demo.app', 'group-b'),
+        equals(2),
+      );
+      expect(
+        interceptor.tokensUsedFor('/cronkit/task/list'),
+        equals(<String>['token-group-b-v1', 'token-group-b-v2']),
+      );
+    });
+
+    test(
+      'shares refreshed token across cronkit, agentkit, and subscribe',
+      () async {
+        final interceptor = _AppAuthRecoveryInterceptor();
+        final sdk = AgentOSSDK(
+          apiClient: ApiClient(
+            dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+              ..interceptors.add(interceptor),
+          ),
+        );
+
+        await sdk.agentos.registerBundle(
+          bundleId: 'com.demo.app',
+          appGroupId: 'group-a',
+        );
+
+        final tasks = await sdk.cronkit.listTasks(limit: 10);
+        expect(tasks, hasLength(1));
+
+        final session = await sdk.agentkit.initSession();
+        expect(session['sessionId'], equals('sess-recovered'));
+
+        final handler = _CountingEventHandler();
+        await sdk.agentos.subscribe(handler);
+        await handler.firstWelcome.future.timeout(const Duration(seconds: 2));
+
+        expect(
+          interceptor.registerCountFor('com.demo.app', 'group-a'),
+          equals(2),
+        );
+        expect(
+          interceptor.tokensUsedFor('/agentkit/initSession'),
+          equals(<String>['token-group-a-v2']),
+        );
+        expect(
+          interceptor.tokensUsedFor('/appkit/subscribe'),
+          equals(<String>['token-group-a-v2']),
+        );
+      },
+    );
   });
 }
 
@@ -469,6 +975,169 @@ class _CaptureOptionsInterceptor extends Interceptor {
         type: DioExceptionType.badResponse,
       ),
     );
+  }
+}
+
+class _ConnectionEventRecorder {
+  _ConnectionEventRecorder(Stream<AgentOSSubscribeConnectionEvent> stream) {
+    _subscription = stream.listen((event) => _events.add(event));
+  }
+
+  final List<AgentOSSubscribeConnectionEvent> _events =
+      <AgentOSSubscribeConnectionEvent>[];
+  late final StreamSubscription<AgentOSSubscribeConnectionEvent> _subscription;
+
+  List<AgentOSSubscribeConnectionStatus> get statuses =>
+      _events.map((event) => event.status).toList(growable: false);
+
+  Future<void> waitForCount(int count) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (_events.length < count) {
+      if (DateTime.now().isAfter(deadline)) {
+        fail('Timed out waiting for $count connection events, got $_events');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+  }
+
+  Future<void> dispose() => _subscription.cancel();
+}
+
+enum _SubscribePlanType { stream, unauthorized, networkError }
+
+class _SubscribePlan {
+  const _SubscribePlan.stream()
+    : type = _SubscribePlanType.stream,
+      emitWelcome = true,
+      message = null;
+
+  const _SubscribePlan.unauthorized()
+    : type = _SubscribePlanType.unauthorized,
+      emitWelcome = false,
+      message = 'invalid app token';
+
+  const _SubscribePlan.networkError()
+    : type = _SubscribePlanType.networkError,
+      emitWelcome = false,
+      message = 'socket closed';
+
+  final _SubscribePlanType type;
+  final bool emitWelcome;
+  final String? message;
+}
+
+class _ScriptedAppKitInterceptor extends Interceptor {
+  _ScriptedAppKitInterceptor({required this.subscribePlans});
+
+  final List<_SubscribePlan> subscribePlans;
+  final List<StreamController<Uint8List>> _controllers =
+      <StreamController<Uint8List>>[];
+  final List<String> subscribeTokens = <String>[];
+  int registerCount = 0;
+  int _subscribeRequestIndex = 0;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path == '/appkit/register') {
+      registerCount += 1;
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, String>{'token': 'token-v$registerCount'},
+        ),
+      );
+      return;
+    }
+
+    if (options.path != '/appkit/subscribe') {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          response: Response(
+            requestOptions: options,
+            statusCode: 404,
+            data: 'Unhandled path ${options.path}',
+          ),
+          type: DioExceptionType.badResponse,
+        ),
+      );
+      return;
+    }
+
+    final bearer = (options.headers[HttpHeaders.authorizationHeader] ?? '')
+        .toString();
+    final token = bearer.startsWith('Bearer ')
+        ? bearer.substring('Bearer '.length)
+        : '';
+    subscribeTokens.add(token);
+
+    final plan = subscribePlans[_subscribeRequestIndex];
+    _subscribeRequestIndex += 1;
+    switch (plan.type) {
+      case _SubscribePlanType.stream:
+        final controller = StreamController<Uint8List>();
+        _controllers.add(controller);
+        if (plan.emitWelcome) {
+          scheduleMicrotask(() {
+            if (!controller.isClosed) {
+              controller.add(
+                Uint8List.fromList(
+                  utf8.encode('event: welcome\ndata: {"bundleId":"demo"}\n\n'),
+                ),
+              );
+            }
+          });
+        }
+        handler.resolve(
+          Response<ResponseBody>(
+            requestOptions: options,
+            statusCode: 200,
+            data: ResponseBody(
+              controller.stream,
+              200,
+              headers: <String, List<String>>{
+                Headers.contentTypeHeader: <String>['text/event-stream'],
+              },
+            ),
+          ),
+        );
+        return;
+      case _SubscribePlanType.unauthorized:
+        handler.reject(
+          DioException(
+            requestOptions: options,
+            response: Response(
+              requestOptions: options,
+              statusCode: 401,
+              data: <String, dynamic>{'error': plan.message},
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        );
+        return;
+      case _SubscribePlanType.networkError:
+        handler.reject(
+          DioException(
+            requestOptions: options,
+            message: plan.message,
+            type: DioExceptionType.connectionError,
+          ),
+        );
+        return;
+    }
+  }
+
+  Future<void> closeStream(int index) async {
+    await _controllers[index].close();
+  }
+
+  Future<void> dispose() async {
+    for (final controller in _controllers) {
+      if (!controller.isClosed) {
+        await controller.close();
+      }
+    }
   }
 }
 
@@ -652,17 +1321,23 @@ class _AgentKitInterceptor extends Interceptor {
 
 class _AppKitInterceptor extends Interceptor {
   String? lastBundleId;
+  String? lastAppGroupId;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (options.path == '/appkit/register') {
       final payload = options.data as Map<String, dynamic>;
       lastBundleId = payload['bundleId']?.toString();
+      lastAppGroupId = payload['appGroupId']?.toString();
       handler.resolve(
         Response(
           requestOptions: options,
           statusCode: lastBundleId?.isEmpty ?? true ? 400 : 200,
-          data: <String, String>{'token': 'sk-demo'},
+          data: <String, String>{
+            'token': 'sk-demo',
+            'bundleId': lastBundleId ?? '',
+            'appGroupId': lastAppGroupId ?? lastBundleId ?? '',
+          },
         ),
       );
       return;
@@ -722,6 +1397,307 @@ class _AppKitInterceptor extends Interceptor {
   }
 }
 
+class _CronKitInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path == '/appkit/register') {
+      final payload = options.data as Map<String, dynamic>;
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, String>{
+            'token': 'sk-demo',
+            'bundleId': payload['bundleId']?.toString() ?? '',
+            'appGroupId':
+                payload['appGroupId']?.toString() ??
+                payload['bundleId']?.toString() ??
+                '',
+          },
+        ),
+      );
+      return;
+    }
+
+    final bearer = (options.headers[HttpHeaders.authorizationHeader] ?? '')
+        .toString();
+    if (!bearer.startsWith('Bearer ')) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          response: Response(
+            requestOptions: options,
+            statusCode: 401,
+            data: 'Missing bearer',
+          ),
+          type: DioExceptionType.badResponse,
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/task/create') {
+      final payload = options.data as Map<String, dynamic>;
+      expect(payload['name'], equals('daily-report'));
+      expect(payload['schedule'], equals('0 9 * * *'));
+      expect(payload['timezone'], equals('Asia/Shanghai'));
+      expect(payload['spec']['systemPrompt'], equals('system'));
+      expect(payload['spec']['content'], isA<List<dynamic>>());
+      expect(payload['spec']['modelId'], equals('gpt-4o'));
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: _cronTaskJson(),
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/task/list') {
+      expect(options.queryParameters['enabled'], isTrue);
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <Map<String, dynamic>>[_cronTaskListItemJson()],
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/task') {
+      expect(options.queryParameters['cronId'], equals('cron-1'));
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: _cronTaskJson(),
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/task/update') {
+      final payload = options.data as Map<String, dynamic>;
+      expect(payload['cronId'], equals('cron-1'));
+      expect(payload['enabled'], isFalse);
+      expect(payload['timezone'], equals('UTC'));
+      final data = _cronTaskJson()
+        ..['enabled'] = false
+        ..['timezone'] = 'UTC';
+      handler.resolve(
+        Response(requestOptions: options, statusCode: 200, data: data),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/task/setEnabled') {
+      final payload = options.data as Map<String, dynamic>;
+      expect(payload['cronId'], equals('cron-1'));
+      expect(payload['enabled'], isA<bool>());
+      final enabled = payload['enabled'] as bool;
+      final data = _cronTaskJson()
+        ..['enabled'] = enabled
+        ..['status'] = enabled ? 'active' : 'paused';
+      handler.resolve(
+        Response(requestOptions: options, statusCode: 200, data: data),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/task/runNow') {
+      final payload = options.data as Map<String, dynamic>;
+      expect(payload['cronId'], equals('cron-1'));
+      expect(
+        payload['scheduledAt'],
+        equals(DateTime.utc(2026, 1, 1, 1, 2, 3).toIso8601String()),
+      );
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{
+            'runId': 'run-1',
+            'cronId': 'cron-1',
+            'trigger': 'manual',
+            'status': 'success',
+            'scheduledAt': DateTime.utc(2026, 1, 1, 1).toIso8601String(),
+            'startedAt': DateTime.utc(2026, 1, 1, 1, 0, 1).toIso8601String(),
+            'hasDisplayableResult': true,
+            'finishedAt': DateTime.utc(2026, 1, 1, 1, 0, 2).toIso8601String(),
+            'liteAgentSessionId': 'session-1',
+            'result': <String, dynamic>{'ok': true},
+            'displayMessageId': 'msg-1',
+            'displayText': 'Daily report ready',
+          },
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/run') {
+      expect(options.queryParameters['runId'], equals('run-1'));
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{
+            'runId': 'run-1',
+            'cronId': 'cron-1',
+            'trigger': 'scheduler',
+            'status': 'success',
+            'scheduledAt': DateTime.utc(2026, 1, 1, 1).toIso8601String(),
+            'startedAt': DateTime.utc(2026, 1, 1, 1, 0, 1).toIso8601String(),
+            'hasDisplayableResult': true,
+            'finishedAt': DateTime.utc(2026, 1, 1, 1, 0, 2).toIso8601String(),
+            'liteAgentSessionId': 'session-1',
+            'result': <String, dynamic>{'ok': true},
+            'displayMessageId': 'msg-1',
+            'displayText': 'Daily report ready',
+          },
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/run/list') {
+      expect(options.queryParameters['cronId'], equals('cron-1'));
+      expect(options.queryParameters['limit'], equals(5));
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'runId': 'run-1',
+              'cronId': 'cron-1',
+              'trigger': 'scheduler',
+              'status': 'success',
+              'scheduledAt': DateTime.utc(2026, 1, 1, 1).toIso8601String(),
+              'startedAt': DateTime.utc(2026, 1, 1, 1, 0, 1).toIso8601String(),
+              'hasDisplayableResult': true,
+              'finishedAt': DateTime.utc(2026, 1, 1, 1, 0, 2).toIso8601String(),
+              'displayText': 'Daily report ready',
+            },
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/run/messages') {
+      expect(options.queryParameters['runId'], equals('run-1'));
+      expect(options.queryParameters['limit'], equals(10));
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'messageId': 'msg-1',
+              'runId': 'run-1',
+              'cronId': 'cron-1',
+              'timestamp': DateTime.utc(2026, 1, 1, 1, 0, 1).toIso8601String(),
+              'message': <String, dynamic>{
+                'sessionId': 'session-1',
+                'taskId': 'task-1',
+                'role': 'assistant',
+                'to': 'user',
+                'type': 'text',
+                'content': 'done',
+                'createTime': DateTime.utc(
+                  2026,
+                  1,
+                  1,
+                  1,
+                  0,
+                  1,
+                ).toIso8601String(),
+              },
+            },
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/run/delete') {
+      final payload = options.data as Map<String, dynamic>;
+      expect(payload['runId'], equals('run-1'));
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{'deleted': true, 'runId': 'run-1'},
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/task/delete') {
+      final payload = options.data as Map<String, dynamic>;
+      expect(payload['cronId'], equals('cron-1'));
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{'deleted': true, 'cronId': 'cron-1'},
+        ),
+      );
+      return;
+    }
+
+    handler.reject(
+      DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 404,
+          data: 'Unhandled path ${options.path}',
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+  }
+
+  Map<String, dynamic> _cronTaskJson() => <String, dynamic>{
+    'cronId': 'cron-1',
+    'name': 'daily-report',
+    'schedule': '0 9 * * *',
+    'source': 'appkit|owner=com.demo.app|group=com.demo.group',
+    'userId': 'user-1',
+    'sessionId': 'session-1',
+    'timezone': 'Asia/Shanghai',
+    'enabled': true,
+    'status': 'active',
+    'concurrency': 'skipIfRunning',
+    'createdAt': DateTime.utc(2026, 1, 1).toIso8601String(),
+    'updatedAt': DateTime.utc(2026, 1, 1, 0, 1).toIso8601String(),
+    'lastRunAt': DateTime.utc(2026, 1, 1, 8).toIso8601String(),
+    'nextRunAt': DateTime.utc(2026, 1, 2, 9).toIso8601String(),
+    'spec': <String, dynamic>{
+      'systemPrompt': 'system',
+      'content': <Map<String, dynamic>>[
+        <String, dynamic>{'type': 'text', 'message': 'prompt'},
+      ],
+      'timeoutSeconds': 3600,
+      'modelId': 'gpt-4o',
+      'modelName': 'gpt-4o',
+    },
+  };
+
+  Map<String, dynamic> _cronTaskListItemJson() => <String, dynamic>{
+    'cronId': 'cron-1',
+    'name': 'daily-report',
+    'schedule': '0 9 * * *',
+    'enabled': true,
+    'status': 'active',
+    'lastRunAt': DateTime.utc(2026, 1, 1, 8).toIso8601String(),
+    'nextRunAt': DateTime.utc(2026, 1, 2, 9).toIso8601String(),
+  };
+}
+
 class _LlmKitInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -738,6 +1714,16 @@ class _LlmKitInterceptor extends Interceptor {
               'description': 'text model',
               'type': 'textGeneration',
               'contextWindowSize': 8192,
+              'isRemote': false,
+              'isCustom': false,
+            },
+            <String, dynamic>{
+              'id': 'qwen2.5-vl-7b',
+              'name': 'qwen2.5-vl-7b',
+              'alias': 'qwen2.5-vl-7b',
+              'description': 'vision-language model',
+              'type': 'image_text_to_text',
+              'contextWindowSize': 32768,
               'isRemote': false,
               'isCustom': false,
             },
@@ -768,6 +1754,204 @@ class _LlmKitInterceptor extends Interceptor {
         type: DioExceptionType.badResponse,
       ),
     );
+  }
+}
+
+class _AppAuthRecoveryInterceptor extends Interceptor {
+  final Map<String, int> _registerCounts = <String, int>{};
+  final Map<String, List<String>> _registerRequests = <String, List<String>>{};
+  final Map<String, List<String>> _tokensByPath = <String, List<String>>{};
+  final Set<String> _failedTokens = <String>{};
+
+  int registerCountFor(String bundleId, String? appGroupId) {
+    return _registerCounts[_key(bundleId, appGroupId)] ?? 0;
+  }
+
+  List<String> tokensUsedFor(String path) {
+    return List<String>.from(_tokensByPath[path] ?? const <String>[]);
+  }
+
+  List<String> registerRequestsFor(String bundleId, String? appGroupId) {
+    return List<String>.from(
+      _registerRequests[_key(bundleId, appGroupId)] ?? const <String>[],
+    );
+  }
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path == '/appkit/register') {
+      final payload = Map<String, dynamic>.from(options.data as Map);
+      final bundleId = payload['bundleId']?.toString() ?? '';
+      final appGroupId = payload['appGroupId']?.toString();
+      final key = _key(bundleId, appGroupId);
+      _registerRequests
+          .putIfAbsent(key, () => <String>[])
+          .add('$bundleId::${appGroupId ?? '<null>'}');
+      final count = (_registerCounts[key] ?? 0) + 1;
+      _registerCounts[key] = count;
+      final groupSegment = appGroupId ?? 'default';
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, String>{
+            'token': 'token-$groupSegment-v$count',
+            'bundleId': bundleId,
+            if (appGroupId != null) 'appGroupId': appGroupId,
+          },
+        ),
+      );
+      return;
+    }
+
+    final bearer = (options.headers[HttpHeaders.authorizationHeader] ?? '')
+        .toString();
+    if (!bearer.startsWith('Bearer ')) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          response: Response(
+            requestOptions: options,
+            statusCode: 401,
+            data: 'Missing bearer',
+          ),
+          type: DioExceptionType.badResponse,
+        ),
+      );
+      return;
+    }
+
+    final token = bearer.substring('Bearer '.length);
+    _tokensByPath.putIfAbsent(options.path, () => <String>[]).add(token);
+
+    if (_shouldFailOnce(token)) {
+      if (options.path.startsWith('/agentkit/')) {
+        handler.reject(
+          DioException(
+            requestOptions: options,
+            response: Response(
+              requestOptions: options,
+              statusCode: 401,
+              data: <String, dynamic>{'error': 'invalid app token'},
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        );
+        return;
+      }
+      if (options.path.startsWith('/cronkit/')) {
+        handler.reject(
+          DioException(
+            requestOptions: options,
+            response: Response(
+              requestOptions: options,
+              statusCode: 500,
+              data: 'invalid app token',
+            ),
+            type: DioExceptionType.badResponse,
+          ),
+        );
+        return;
+      }
+    }
+
+    if (options.path == '/agentkit/initSession') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, String>{'sessionId': 'sess-recovered'},
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/appkit/subscribe') {
+      final body = ResponseBody.fromString(
+        'event: welcome\n'
+        'data: {"bundleId":"demo"}\n'
+        '\n',
+        200,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>['text/event-stream'],
+        },
+      );
+      handler.resolve(
+        Response<ResponseBody>(
+          requestOptions: options,
+          statusCode: 200,
+          data: body,
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/task/list') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'cronId': 'cron-1',
+              'name': 'daily-report',
+              'schedule': '0 9 * * *',
+              'enabled': true,
+              'status': 'active',
+            },
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/cronkit/task') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{
+            'cronId': 'cron-1',
+            'name': 'daily-report',
+            'schedule': '0 9 * * *',
+            'source': 'appkit|owner=com.demo.app|group=recovered',
+            'timezone': 'Asia/Shanghai',
+            'enabled': true,
+            'status': 'active',
+            'concurrency': 'skipIfRunning',
+            'createdAt': DateTime.utc(2026, 1, 1).toIso8601String(),
+            'updatedAt': DateTime.utc(2026, 1, 1, 0, 1).toIso8601String(),
+            'spec': <String, dynamic>{
+              'systemPrompt': 'system',
+              'content': <Map<String, dynamic>>[
+                <String, dynamic>{'type': 'text', 'message': 'prompt'},
+              ],
+            },
+          },
+        ),
+      );
+      return;
+    }
+
+    handler.reject(
+      DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 404,
+          data: 'Unhandled path ${options.path}',
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+  }
+
+  bool _shouldFailOnce(String token) {
+    return token.endsWith('-v1') && _failedTokens.add(token);
+  }
+
+  String _key(String bundleId, String? appGroupId) {
+    return '$bundleId::${appGroupId ?? '<null>'}';
   }
 }
 

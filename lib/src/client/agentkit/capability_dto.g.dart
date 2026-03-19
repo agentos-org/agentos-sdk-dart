@@ -72,7 +72,7 @@ LLMConfig _$LLMConfigFromJson(Map<String, dynamic> json) => LLMConfig(
   contextWindowSize: (json['contextWindowSize'] as num?)?.toInt(),
   topP: (json['topP'] as num?)?.toDouble() ?? 1.0,
   supportsToolCall: json['supportsToolCall'] as bool? ?? true,
-  supportsReasoning: json['supportsReasoning'] as bool? ?? false,
+  supportsReasoning: json['supportsReasoning'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$LLMConfigToJson(LLMConfig instance) => <String, dynamic>{

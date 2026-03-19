@@ -3,11 +3,12 @@ import '../shared/dto.dart';
 
 part 'dto.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class AppBundle {
   String bundleId;
+  String? appGroupId;
 
-  AppBundle({required this.bundleId});
+  AppBundle({required this.bundleId, this.appGroupId});
 
   factory AppBundle.fromJson(Map<String, dynamic> json) =>
       _$AppBundleFromJson(json);
@@ -15,11 +16,13 @@ class AppBundle {
   Map<String, dynamic> toJson() => _$AppBundleToJson(this);
 }
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class AccessToken {
   String token;
+  String? bundleId;
+  String? appGroupId;
 
-  AccessToken({required this.token});
+  AccessToken({required this.token, this.bundleId, this.appGroupId});
 
   factory AccessToken.fromJson(Map<String, dynamic> json) =>
       _$AccessTokenFromJson(json);

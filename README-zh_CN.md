@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 一个轻量的 Dart SDK，用于访问 AgentOS API，支持 Root、AgentKit、AppKit、
-IntentKit、LlmKit chat 和 ToolKit 发现接口。推荐使用统一的 `AgentOSSDK`，
+CronKit、LlmKit chat 和 ToolKit 发现接口。推荐使用统一的 `AgentOSSDK`，
 无需手动管理 token。
 
 ## 功能
@@ -10,7 +10,7 @@ IntentKit、LlmKit chat 和 ToolKit 发现接口。推荐使用统一的 `AgentO
 - AgentKit API：Agent CRUD、会话初始化、
   chat 流式/单次、历史记录、stop/clear、回调
 - AppKit API：bundle 注册与 SSE 订阅
-- IntentKit API：意图提交、确认与下一步动作建议
+- CronKit API：定时任务 CRUD、运行记录与调度器控制
 - LlmKit API：模型列表与指向 `/llmkit/text` 的 OpenAI 兼容 chat 客户端
 - ToolKit API：tool 列表、tool 定义读取与 tool 生命周期事件订阅
 
@@ -46,7 +46,11 @@ Future<void> main() async {
   final version = await sdk.agentos.getVersion();
   print('AgentOS version: ${version.version}');
 
-  await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+  final registration = await sdk.agentos.registerBundle(
+    bundleId: 'com.demo.app',
+    appGroupId: 'com.demo.group',
+  );
+  print('App token: ${registration.token}');
 
   await sdk.agentos.subscribe(_DemoEventHandler());
   await Future<void>.delayed(const Duration(seconds: 1));
@@ -143,7 +147,7 @@ AgentOSSDK({
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit 相关接口，内部处理 token。 |
 | `agentkit` | `AgentKitModule` | AgentKit 相关接口，内部处理 token。 |
-| `intentkit` | `IntentKitModule` | IntentKit 相关接口，内部处理 token。 |
+| `cronkit` | `CronKitModule` | CronKit 相关接口，内部处理 token。 |
 | `llmkit` | `LlmKitModule` | LlmKit 模型列表与预配置 chat 客户端。 |
 | `toolkit` | `ToolKitModule` | ToolKit 发现接口与 tool 生命周期事件订阅。 |
 | `dispose()` | `Future<void>` | 释放 SDK 资源并取消当前 AppKit 订阅。 |
@@ -155,8 +159,40 @@ AgentOSSDK({
 | `getVersion()` | 无 | 获取 AgentOS 服务版本。 |
 | `getRoot()` | 无 | 获取 AgentOS 网关元信息。 |
 | `getReady()` | 无 | 获取 AgentOS 就绪状态。 |
-| `registerBundle({required String bundleId})` | `bundleId` | 注册 app bundle，并在内部保存 bearer token。 |
+| `registerBundle({required String bundleId, String? appGroupId})` | `bundleId`, `appGroupId` | 注册 app bundle，在内部保存 bearer token，并返回 token 元信息。 |
 | `subscribe(AgentOSEventHandler handler)` | `handler` | 使用 handler 订阅 AppKit SSE 事件。 |
+
+### CronKitModule（`sdk.cronkit`）
+
+| 方法 | 参数 | 说明 |
+| --- | --- | --- |
+| `getTask({required String cronId})` | `cronId` | 通过 `cronId` 获取定时任务。 |
+| `listTasks({bool? enabled, int? offset, int? limit})` | `enabled`, `offset`, `limit` | 获取当前 app group 可见的定时任务列表。 |
+| `createTask({required CronTaskCreateRequest request})` | `request` | 创建定时任务。 |
+| `updateTask({required CronTaskUpdateRequest request})` | `request` | 更新当前 app 拥有的定时任务。 |
+| `deleteTask({required String cronId})` | `cronId` | 删除当前 app 拥有的定时任务。 |
+| `enableTask({required String cronId})` | `cronId` | 显式启用定时任务，并返回最新状态。 |
+| `disableTask({required String cronId})` | `cronId` | 显式禁用定时任务，并返回最新状态。 |
+| `runTaskNow({required String cronId, DateTime? scheduledAt})` | `cronId`, `scheduledAt` | 立即触发一次定时任务运行。 |
+| `getRun({required String runId})` | `runId` | 通过 `runId` 获取单条运行记录。 |
+| `listRuns({String? cronId, DateTime? after, DateTime? before, int? offset, int? limit})` | `cronId`, `after`, `before`, `offset`, `limit` | 获取当前 app group 可见的运行记录列表。 |
+| `listRunMessages({required String runId, int? offset, int? limit})` | `runId`, `offset`, `limit` | 获取某次运行持久化保存的 `AgentMessage` 记录。 |
+| `deleteRun({required String runId})` | `runId` | 删除某次运行及其持久化消息记录。 |
+
+`CronTaskCreateRequest.spec` 和 `CronTask.spec` 使用 CronKit 的任务 schema：
+
+```dart
+CronSpec(
+  systemPrompt: 'You are a scheduled agent.',
+  content: <Content>[
+    Content(type: ContentType.text, message: 'Generate the daily summary.'),
+  ],
+  modelId: 'gpt-4o', // 可选请求输入
+)
+```
+
+- `modelId` 是可选请求字段，CronKit 会用它解析底层模型配置。
+- `modelName` 是可选返回字段，会出现在 `CronTask.spec` 中，表示最终解析后的模型名。
 
 ### AgentKitModule（`sdk.agentkit`）
 
@@ -175,15 +211,6 @@ AgentOSSDK({
 | `clear({required String sessionId})` | `sessionId` | 清除会话数据。 |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | 发送工具回调结果。 |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | 发送流式工具回调结果。 |
-
-### IntentKitModule（`sdk.intentkit`）
-
-| 方法 | 参数 | 说明 |
-| --- | --- | --- |
-| `submitRaw(IntentKitSubmitRawRequest request)` | `request` | 提交原始意图输入，交给 IntentKit 异步处理。 |
-| `submitIntent(IntentKitSubmitIntentRequest request)` | `request` | 提交结构化意图请求。 |
-| `confirmJob(IntentKitConfirmJobRequest request)` | `request` | 确认已有 IntentKit 任务。 |
-| `suggestNextAction(IntentKitSuggestNextActionRequest request)` | `request` | 请求 IntentKit 给出推荐的下一步动作。 |
 
 ### LlmKitModule（`sdk.llmkit`）
 
@@ -216,7 +243,10 @@ import 'package:agentos_sdk/agentos_sdk.dart';
 
 final sdk = AgentOSSDK(baseUrl: 'http://localhost:8888');
 
-await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+await sdk.agentos.registerBundle(
+  bundleId: 'com.demo.app',
+  appGroupId: 'com.demo.group',
+);
 await sdk.agentos.subscribe(myHandler); // app 启动
 
 // app 停止/释放
@@ -287,7 +317,7 @@ class MyHandler extends AgentMessageHandler {
 ## Token 管理
 
 - `agentos.registerBundle` 会将 bearer token 保存到 SDK 内部。
-- `agentkit`/`agentos` 请求会自动使用已保存的 token。
+- `agentkit`/`agentos`/`cronkit` 请求会自动使用已保存的 token。
 
 ## 配置
 
@@ -295,9 +325,10 @@ class MyHandler extends AgentMessageHandler {
 
 ## 备注
 
-- 在调用需要 token 的 `agentkit`/`agentos` 接口前，请先调用 `agentos.registerBundle`。
-- `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`、`intentkit`、`llmkit`、`toolkit`），便于按 API 领域区分。
+- 在调用需要 token 的 `agentkit`/`agentos`/`cronkit` 接口前，请先调用 `agentos.registerBundle`。
+- `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`、`cronkit`、`llmkit`、`toolkit`），便于按 API 领域区分。
 - AgentKit 接口通过 `/agentkit/*` 对外提供。
+- CronKit 接口通过 `/cronkit/*` 对外提供。
 - `sdk.llmkit.chat` 当前仅暴露 chat，默认请求
   `/llmkit/text/chat/completions`。
 - `sdk.toolkit.subscribeToolEvents(...)` 需要 daemon API key，并通过 SSE

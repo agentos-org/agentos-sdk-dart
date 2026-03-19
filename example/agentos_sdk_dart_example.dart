@@ -14,9 +14,21 @@ Future<void> main(List<String> args) async {
 
   /// HTTP:
   /// POST http://localhost:8888/appkit/register
-  /// Body: {"bundleId":"com.mydomain.myapp"}
-  await sdk.agentos.registerBundle(bundleId: bundleId);
-  print('Registered bundle (bundleId: $bundleId)');
+  /// Body: {"bundleId":"com.mydomain.myapp","appGroupId":"com.mydomain.shared"}
+  final registration = await sdk.agentos.registerBundle(
+    bundleId: bundleId,
+    appGroupId: 'com.mydomain.shared',
+  );
+  print(
+    'Registered bundle (bundleId: ${registration.bundleId}, appGroupId: ${registration.appGroupId})',
+  );
+
+  sdk.agentos.connectionEvents.listen((event) {
+    print(
+      'Subscribe connection status: ${event.status.name}'
+      '${event.attempt > 0 ? ' (attempt ${event.attempt})' : ''}',
+    );
+  });
 
   print('Subscribe AgentOS event...');
 
@@ -29,7 +41,9 @@ Future<void> main(List<String> args) async {
   /// HTTP:
   /// GET http://localhost:8888/llmkit/models
   final models = await sdk.llmkit.listModels();
-  print('Available llmkit models: ${models.map((m) => m.alias).join(", ")}');
+  print(
+    'Available llmkit models: ${models.map((m) => "${m.alias}(${m.category.name})").join(", ")}',
+  );
 
   /// HTTP:
   /// POST http://localhost:8888/llmkit/text/chat/completions

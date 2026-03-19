@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, AppKit,
-IntentKit, LlmKit chat, and ToolKit discovery endpoints. Use the unified
+CronKit, LlmKit chat, and ToolKit discovery endpoints. Use the unified
 `AgentOSSDK` to avoid managing tokens manually.
 
 ## Features
@@ -10,7 +10,7 @@ IntentKit, LlmKit chat, and ToolKit discovery endpoints. Use the unified
 - AgentKit API: agent CRUD, session init,
   chat stream/simple, history, stop/clear, callbacks)
 - AppKit API: bundle registration and SSE subscription
-- IntentKit API: intent submission, confirmation, and next-action suggestion
+- CronKit API: cron task CRUD, run history, and scheduler control
 - LlmKit API: model listing and OpenAI-compatible chat client at
   `/llmkit/text`
 - ToolKit API: tool listing, tool definition loading, and tool lifecycle event
@@ -48,7 +48,11 @@ Future<void> main() async {
   final version = await sdk.agentos.getVersion();
   print('AgentOS version: ${version.version}');
 
-  await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+  final registration = await sdk.agentos.registerBundle(
+    bundleId: 'com.demo.app',
+    appGroupId: 'com.demo.group',
+  );
+  print('App token: ${registration.token}');
 
   await sdk.agentos.subscribe(_DemoEventHandler());
   await Future<void>.delayed(const Duration(seconds: 1));
@@ -145,7 +149,7 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit endpoints with internal token handling. |
 | `agentkit` | `AgentKitModule` | AgentKit endpoints with internal token handling. |
-| `intentkit` | `IntentKitModule` | IntentKit endpoints with internal token handling. |
+| `cronkit` | `CronKitModule` | CronKit task management endpoints with internal token handling. |
 | `llmkit` | `LlmKitModule` | LlmKit model listing and preconfigured chat client. |
 | `toolkit` | `ToolKitModule` | ToolKit discovery endpoints and tool lifecycle event subscription. |
 | `dispose()` | `Future<void>` | Releases SDK resources and cancels active AppKit subscription. |
@@ -157,8 +161,40 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `getVersion()` | none | Fetches AgentOS service version. |
 | `getRoot()` | none | Fetches AgentOS gateway metadata. |
 | `getReady()` | none | Fetches AgentOS readiness status. |
-| `registerBundle({required String bundleId})` | `bundleId` | Registers an app bundle and stores the bearer token internally. |
+| `registerBundle({required String bundleId, String? appGroupId})` | `bundleId`, `appGroupId` | Registers an app bundle, stores the bearer token internally, and returns token metadata. |
 | `subscribe(AgentOSEventHandler handler)` | `handler` | Subscribes to AppKit SSE events using a handler implementation. |
+
+### CronKitModule (`sdk.cronkit`)
+
+| Method | Parameters | Description |
+| --- | --- | --- |
+| `getTask({required String cronId})` | `cronId` | Fetches a cron task by ID. |
+| `listTasks({bool? enabled, int? offset, int? limit})` | `enabled`, `offset`, `limit` | Lists visible cron tasks for the current app group. |
+| `createTask({required CronTaskCreateRequest request})` | `request` | Creates a cron task. |
+| `updateTask({required CronTaskUpdateRequest request})` | `request` | Updates a cron task owned by the current app. |
+| `deleteTask({required String cronId})` | `cronId` | Deletes a cron task owned by the current app. |
+| `enableTask({required String cronId})` | `cronId` | Explicitly enables a cron task and returns its updated status. |
+| `disableTask({required String cronId})` | `cronId` | Explicitly disables a cron task and returns its updated status. |
+| `runTaskNow({required String cronId, DateTime? scheduledAt})` | `cronId`, `scheduledAt` | Triggers an immediate run for a cron task. |
+| `getRun({required String runId})` | `runId` | Fetches one cron run record by ID. |
+| `listRuns({String? cronId, DateTime? after, DateTime? before, int? offset, int? limit})` | `cronId`, `after`, `before`, `offset`, `limit` | Lists cron task runs visible to the current app group. |
+| `listRunMessages({required String runId, int? offset, int? limit})` | `runId`, `offset`, `limit` | Lists persisted `AgentMessage` records for a cron run. |
+| `deleteRun({required String runId})` | `runId` | Deletes one cron run and its persisted messages. |
+
+`CronTaskCreateRequest.spec` and `CronTask.spec` use the CronKit schema:
+
+```dart
+CronSpec(
+  systemPrompt: 'You are a scheduled agent.',
+  content: <Content>[
+    Content(type: ContentType.text, message: 'Generate the daily summary.'),
+  ],
+  modelId: 'gpt-4o', // optional request input
+)
+```
+
+- `modelId` is an optional request field used by CronKit to resolve the backing model.
+- `modelName` is an optional response field returned in `CronTask.spec` after resolution.
 
 ### AgentKitModule (`sdk.agentkit`)
 
@@ -177,15 +213,6 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `clear({required String sessionId})` | `sessionId` | Clears session data. |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | Sends tool callback results. |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | Sends streaming tool callback results. |
-
-### IntentKitModule (`sdk.intentkit`)
-
-| Method | Parameters | Description |
-| --- | --- | --- |
-| `submitRaw(IntentKitSubmitRawRequest request)` | `request` | Submits raw intent input for asynchronous processing. |
-| `submitIntent(IntentKitSubmitIntentRequest request)` | `request` | Submits a structured intent request. |
-| `confirmJob(IntentKitConfirmJobRequest request)` | `request` | Confirms an existing IntentKit job. |
-| `suggestNextAction(IntentKitSuggestNextActionRequest request)` | `request` | Requests the recommended next action from IntentKit. |
 
 ### LlmKitModule (`sdk.llmkit`)
 
@@ -301,8 +328,8 @@ class MyHandler extends AgentMessageHandler {
 
 - Call `agentos.registerBundle` before using `agentkit`/`agentos` APIs that
   require a token.
-- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `intentkit`,
-  `llmkit`, `toolkit`) for clearer separation of API areas.
+- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `llmkit`,
+  `toolkit`) for clearer separation of API areas.
 - AgentKit endpoints are exposed under `/agentkit/*`.
 - `sdk.llmkit.chat` currently exposes chat only and targets
   `/llmkit/text/chat/completions` by default.
