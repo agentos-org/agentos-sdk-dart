@@ -737,34 +737,11 @@ class AgentKitModule {
             agentMessageChunk,
           );
         } else if (event.agentEventType == AgentEventType.functionCall) {
-          final payload = _client._asJsonMap(event.data);
-          final functionCallJson = payload['functionCall'];
-          if (functionCallJson is! Map) {
-            throw FormatException(
-              'Invalid functionCall event payload: missing functionCall object.',
-            );
-          }
-          final functionCallMap = Map<String, dynamic>.from(functionCallJson);
-          final functionCall = FunctionCall.fromJson(functionCallMap);
-          if (_isStreamFunctionCall(payload, functionCallMap)) {
-            final pendingCallbacks = <Future<void>>[];
-            await agentMessageHandler.onStreamFunctionCall(
-              session.sessionId,
-              functionCall,
-              (eventToolReturn) {
-                pendingCallbacks.add(_streamCallback(session, eventToolReturn));
-              },
-            );
-            for (final pending in pendingCallbacks) {
-              await pending;
-            }
-          } else {
-            final toolReturn = await agentMessageHandler.onFunctionCall(
-              session.sessionId,
-              functionCall,
-            );
-            await _callback(session, toolReturn);
-          }
+          await _handleFunctionCallEvent(
+            session,
+            event.data,
+            agentMessageHandler,
+          );
         }
       },
       onDone: agentMessageHandler.onDone,
@@ -865,6 +842,52 @@ class AgentKitModule {
       sessionId: session.sessionId,
       eventToolReturn: eventToolReturn,
     );
+  }
+
+  Future<void> _handleFunctionCallEvent(
+    Session session,
+    String eventData,
+    AgentMessageHandler agentMessageHandler,
+  ) async {
+    final payload = _client._asJsonMap(eventData);
+    final functionCallJson = payload['functionCall'];
+    if (functionCallJson is! Map) {
+      throw FormatException(
+        'Invalid functionCall event payload: missing functionCall object.',
+      );
+    }
+
+    final functionCallMap = Map<String, dynamic>.from(functionCallJson);
+    final functionCall = FunctionCall.fromJson(functionCallMap);
+    final payloadSessionId = payload['sessionId']?.toString();
+    final effectiveSessionId =
+        payloadSessionId != null && payloadSessionId.isNotEmpty
+        ? payloadSessionId
+        : session.sessionId;
+    final callbackSession = Session(sessionId: effectiveSessionId);
+
+    if (_isStreamFunctionCall(payload, functionCallMap)) {
+      final pendingCallbacks = <Future<void>>[];
+      await agentMessageHandler.onStreamFunctionCall(
+        effectiveSessionId,
+        functionCall,
+        (eventToolReturn) {
+          pendingCallbacks.add(
+            _streamCallback(callbackSession, eventToolReturn),
+          );
+        },
+      );
+      for (final pending in pendingCallbacks) {
+        await pending;
+      }
+      return;
+    }
+
+    final toolReturn = await agentMessageHandler.onFunctionCall(
+      effectiveSessionId,
+      functionCall,
+    );
+    await _callback(callbackSession, toolReturn);
   }
 
   bool _isStreamFunctionCall(

@@ -11,7 +11,7 @@ void main() {
     test('non-stream function call uses callback once', () async {
       final interceptor = _AgentKitChatRoutingInterceptor(
         functionCallPayload:
-            '{"sessionId":"sess-123","functionCall":{"id":"call-1","name":"demo_tool","arguments":{"query":"ping"}}}',
+            '{"sessionId":"child-sess-456","functionCall":{"id":"call-1","name":"demo_tool","arguments":{"query":"ping"}}}',
       );
       final sdk = _buildSdk(interceptor);
 
@@ -31,12 +31,20 @@ void main() {
 
       expect(interceptor.callbackCount, equals(1));
       expect(interceptor.streamCallbackCount, equals(0));
+      expect(
+        handler.functionCallSessionIds,
+        equals(<String>['child-sess-456']),
+      );
+      expect(
+        interceptor.callbackSessionIds,
+        equals(<String>['child-sess-456']),
+      );
     });
 
     test('stream function call uses streamCallback for DATA and DONE', () async {
       final interceptor = _AgentKitChatRoutingInterceptor(
         functionCallPayload:
-            '{"sessionId":"sess-123","stream":true,"functionCall":{"id":"call-1","name":"demo_tool","arguments":{"query":"ping"}}}',
+            '{"sessionId":"child-sess-456","stream":true,"functionCall":{"id":"call-1","name":"demo_tool","arguments":{"query":"ping"}}}',
       );
       final sdk = _buildSdk(interceptor);
 
@@ -61,6 +69,14 @@ void main() {
         equals(<String>[EventType.DATA, EventType.DONE]),
       );
       expect(interceptor.streamEvents, isNot(contains(EventType.ERROR)));
+      expect(
+        handler.functionCallSessionIds,
+        equals(<String>['child-sess-456']),
+      );
+      expect(
+        interceptor.streamCallbackSessionIds,
+        equals(<String>['child-sess-456', 'child-sess-456']),
+      );
     });
 
     test('missing tool emits stream ERROR', () async {
@@ -122,6 +138,8 @@ class _AgentKitChatRoutingInterceptor extends Interceptor {
   int callbackCount = 0;
   int streamCallbackCount = 0;
   final List<String> streamEvents = <String>[];
+  final List<String> callbackSessionIds = <String>[];
+  final List<String> streamCallbackSessionIds = <String>[];
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -175,6 +193,9 @@ class _AgentKitChatRoutingInterceptor extends Interceptor {
 
     if (options.path == '/agentkit/callback') {
       callbackCount += 1;
+      callbackSessionIds.add(
+        options.queryParameters['sessionId']?.toString() ?? '',
+      );
       handler.resolve(
         Response(
           requestOptions: options,
@@ -189,6 +210,9 @@ class _AgentKitChatRoutingInterceptor extends Interceptor {
       streamCallbackCount += 1;
       final payload = Map<String, dynamic>.from(options.data as Map);
       streamEvents.add(payload['event']?.toString() ?? '');
+      streamCallbackSessionIds.add(
+        options.queryParameters['sessionId']?.toString() ?? '',
+      );
       handler.resolve(
         Response(
           requestOptions: options,
@@ -215,12 +239,14 @@ class _AgentKitChatRoutingInterceptor extends Interceptor {
 
 class _NonStreamHandler extends AgentMessageHandler {
   final Completer<void> done = Completer<void>();
+  final List<String> functionCallSessionIds = <String>[];
 
   @override
   Future<ToolReturn> onFunctionCall(
     String sessionId,
     FunctionCall functionCall,
   ) async {
+    functionCallSessionIds.add(sessionId);
     return ToolReturn(
       id: functionCall.id,
       result: <String, dynamic>{'ok': true},
@@ -253,6 +279,7 @@ class _NonStreamHandler extends AgentMessageHandler {
 
 class _StreamSuccessHandler extends AgentMessageHandler {
   final Completer<void> done = Completer<void>();
+  final List<String> functionCallSessionIds = <String>[];
 
   @override
   Future<void> onStreamFunctionCall(
@@ -260,6 +287,7 @@ class _StreamSuccessHandler extends AgentMessageHandler {
     FunctionCall functionCall,
     void Function(EventToolReturn) onToolReturn,
   ) async {
+    functionCallSessionIds.add(sessionId);
     onToolReturn(
       EventToolReturn(
         event: EventType.DATA,
