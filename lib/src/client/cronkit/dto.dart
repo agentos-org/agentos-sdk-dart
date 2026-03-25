@@ -220,6 +220,7 @@ class CronRun {
   String cronId;
   String trigger;
   String status;
+  String? modelId;
   DateTime scheduledAt;
   DateTime startedAt;
   bool hasDisplayableResult;
@@ -235,6 +236,7 @@ class CronRun {
     required this.cronId,
     required this.trigger,
     required this.status,
+    this.modelId,
     required this.scheduledAt,
     required this.startedAt,
     required this.hasDisplayableResult,
@@ -258,6 +260,7 @@ class CronRunListItem {
   String cronId;
   String trigger;
   String status;
+  String? modelId;
   DateTime scheduledAt;
   DateTime startedAt;
   bool hasDisplayableResult;
@@ -269,6 +272,7 @@ class CronRunListItem {
     required this.cronId,
     required this.trigger,
     required this.status,
+    this.modelId,
     required this.scheduledAt,
     required this.startedAt,
     required this.hasDisplayableResult,

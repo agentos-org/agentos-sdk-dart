@@ -658,6 +658,7 @@ void main() {
       expect(run.runId, equals('run-1'));
       expect(run.cronId, equals('cron-1'));
       expect(run.trigger, equals('manual'));
+      expect(run.modelId, equals('gpt-4o'));
       expect(run.hasDisplayableResult, isTrue);
       expect(run.displayMessageId, equals('msg-1'));
       expect(run.displayText, equals('Daily report ready'));
@@ -665,12 +666,14 @@ void main() {
       final runDetail = await sdk.cronkit.getRun(runId: 'run-1');
       expect(runDetail.status, equals('success'));
       expect(runDetail.trigger, equals('scheduler'));
+      expect(runDetail.modelId, equals('gpt-4o-mini'));
       expect(runDetail.hasDisplayableResult, isTrue);
 
       final runs = await sdk.cronkit.listRuns(cronId: 'cron-1', limit: 5);
       expect(runs, hasLength(1));
       expect(runs.first.runId, equals('run-1'));
       expect(runs.first.trigger, equals('scheduler'));
+      expect(runs.first.modelId, equals('gpt-4o-mini'));
       expect(runs.first.hasDisplayableResult, isTrue);
       expect(runs.first.displayText, equals('Daily report ready'));
 
@@ -1522,6 +1525,7 @@ class _CronKitInterceptor extends Interceptor {
             'cronId': 'cron-1',
             'trigger': 'manual',
             'status': 'success',
+            'modelId': 'gpt-4o',
             'scheduledAt': DateTime.utc(2026, 1, 1, 1).toIso8601String(),
             'startedAt': DateTime.utc(2026, 1, 1, 1, 0, 1).toIso8601String(),
             'hasDisplayableResult': true,
@@ -1547,6 +1551,7 @@ class _CronKitInterceptor extends Interceptor {
             'cronId': 'cron-1',
             'trigger': 'scheduler',
             'status': 'success',
+            'modelId': 'gpt-4o-mini',
             'scheduledAt': DateTime.utc(2026, 1, 1, 1).toIso8601String(),
             'startedAt': DateTime.utc(2026, 1, 1, 1, 0, 1).toIso8601String(),
             'hasDisplayableResult': true,
@@ -1574,6 +1579,7 @@ class _CronKitInterceptor extends Interceptor {
               'cronId': 'cron-1',
               'trigger': 'scheduler',
               'status': 'success',
+              'modelId': 'gpt-4o-mini',
               'scheduledAt': DateTime.utc(2026, 1, 1, 1).toIso8601String(),
               'startedAt': DateTime.utc(2026, 1, 1, 1, 0, 1).toIso8601String(),
               'hasDisplayableResult': true,
