@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 一个轻量的 Dart SDK，用于访问 AgentOS API，支持 Root、AgentKit、AppKit、
-CronKit、LlmKit chat 和 ToolKit 发现接口。推荐使用统一的 `AgentOSSDK`，
+CronKit、RagKit、LlmKit chat 和 ToolKit 发现接口。推荐使用统一的 `AgentOSSDK`，
 无需手动管理 token。
 
 ## 功能
@@ -11,6 +11,7 @@ CronKit、LlmKit chat 和 ToolKit 发现接口。推荐使用统一的 `AgentOSS
   chat 流式/单次、历史记录、stop/clear、回调
 - AppKit API：bundle 注册与 SSE 订阅
 - CronKit API：定时任务 CRUD、运行记录与调度器控制
+- RagKit API：知识库、文档、同步与查询接口
 - LlmKit API：模型列表与指向 `/llmkit/text` 的 OpenAI 兼容 chat 客户端
 - ToolKit API：tool 列表、tool 定义读取与 tool 生命周期事件订阅
 
@@ -148,6 +149,7 @@ AgentOSSDK({
 | `agentos` | `AgentOSModule` | Root/AppKit 相关接口，内部处理 token。 |
 | `agentkit` | `AgentKitModule` | AgentKit 相关接口，内部处理 token。 |
 | `cronkit` | `CronKitModule` | CronKit 相关接口，内部处理 token。 |
+| `ragkit` | `RagKitModule` | RagKit 知识库接口，内部处理 token。 |
 | `llmkit` | `LlmKitModule` | LlmKit 模型列表与预配置 chat 客户端。 |
 | `toolkit` | `ToolKitModule` | ToolKit 发现接口与 tool 生命周期事件订阅。 |
 | `dispose()` | `Future<void>` | 释放 SDK 资源并取消当前 AppKit 订阅。 |
@@ -211,6 +213,25 @@ CronSpec(
 | `clear({required String sessionId})` | `sessionId` | 清除会话数据。 |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | 发送工具回调结果。 |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | 发送流式工具回调结果。 |
+
+### RagKitModule（`sdk.ragkit`）
+
+| 方法 | 参数 | 说明 |
+| --- | --- | --- |
+| `getBase({required String baseId})` | `baseId` | 按 ID 获取知识库。 |
+| `listBases({int? offset, int? limit})` | `offset`, `limit` | 获取当前 app group 可见的知识库列表。 |
+| `createBase({required RagBaseCreateRequest request})` | `request` | 创建知识库。 |
+| `updateBase({required RagBaseUpdateRequest request})` | `request` | 更新当前 app 拥有的知识库。 |
+| `deleteBase({required String baseId})` | `baseId` | 删除当前 app 拥有的知识库。 |
+| `getDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | 获取单个文档。 |
+| `listDocuments({required String baseId, int? offset, int? limit})` | `baseId`, `offset`, `limit` | 获取某个知识库内的文档列表。 |
+| `upsertDocument({required RagUpsertDocumentRequest request})` | `request` | 创建或更新单个 Markdown 文档。 |
+| `upsertDocuments({required RagUpsertDocumentsRequest request})` | `request` | 批量创建或更新 Markdown 文档。 |
+| `deleteDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | 删除单个文档。 |
+| `syncDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | 触发单个文档的向量同步。 |
+| `syncBase({required String baseId})` | `baseId` | 触发整个知识库的向量同步。 |
+| `retryFailed({String? baseId})` | `baseId` | 重试失败的文档同步任务，可选限制到单个知识库。 |
+| `query({required RagQueryRequest request})` | `request` | 对指定知识库执行语义查询。 |
 
 ### LlmKitModule（`sdk.llmkit`）
 

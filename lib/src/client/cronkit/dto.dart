@@ -182,6 +182,7 @@ class CronTaskListItem {
   String schedule;
   bool enabled;
   String status;
+  CronSpec? spec;
   DateTime? lastRunAt;
   DateTime? nextRunAt;
 
@@ -191,6 +192,7 @@ class CronTaskListItem {
     required this.schedule,
     required this.enabled,
     required this.status,
+    this.spec,
     this.lastRunAt,
     this.nextRunAt,
   });

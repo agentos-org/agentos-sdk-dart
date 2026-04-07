@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, AppKit,
-CronKit, LlmKit chat, and ToolKit discovery endpoints. Use the unified
+CronKit, RagKit, LlmKit chat, and ToolKit discovery endpoints. Use the unified
 `AgentOSSDK` to avoid managing tokens manually.
 
 ## Features
@@ -11,6 +11,7 @@ CronKit, LlmKit chat, and ToolKit discovery endpoints. Use the unified
   chat stream/simple, history, stop/clear, callbacks)
 - AppKit API: bundle registration and SSE subscription
 - CronKit API: cron task CRUD, run history, and scheduler control
+- RagKit API: RAG base, document, sync, and query endpoints
 - LlmKit API: model listing and OpenAI-compatible chat client at
   `/llmkit/text`
 - ToolKit API: tool listing, tool definition loading, and tool lifecycle event
@@ -150,6 +151,7 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `agentos` | `AgentOSModule` | Root/AppKit endpoints with internal token handling. |
 | `agentkit` | `AgentKitModule` | AgentKit endpoints with internal token handling. |
 | `cronkit` | `CronKitModule` | CronKit task management endpoints with internal token handling. |
+| `ragkit` | `RagKitModule` | RagKit knowledge-base endpoints with internal token handling. |
 | `llmkit` | `LlmKitModule` | LlmKit model listing and preconfigured chat client. |
 | `toolkit` | `ToolKitModule` | ToolKit discovery endpoints and tool lifecycle event subscription. |
 | `dispose()` | `Future<void>` | Releases SDK resources and cancels active AppKit subscription. |
@@ -213,6 +215,25 @@ CronSpec(
 | `clear({required String sessionId})` | `sessionId` | Clears session data. |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | Sends tool callback results. |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | Sends streaming tool callback results. |
+
+### RagKitModule (`sdk.ragkit`)
+
+| Method | Parameters | Description |
+| --- | --- | --- |
+| `getBase({required String baseId})` | `baseId` | Fetches a RAG base by ID. |
+| `listBases({int? offset, int? limit})` | `offset`, `limit` | Lists RAG bases visible to the current app group. |
+| `createBase({required RagBaseCreateRequest request})` | `request` | Creates a RAG base. |
+| `updateBase({required RagBaseUpdateRequest request})` | `request` | Updates a RAG base owned by the current app. |
+| `deleteBase({required String baseId})` | `baseId` | Deletes a RAG base owned by the current app. |
+| `getDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | Fetches one RAG document. |
+| `listDocuments({required String baseId, int? offset, int? limit})` | `baseId`, `offset`, `limit` | Lists documents inside a RAG base. |
+| `upsertDocument({required RagUpsertDocumentRequest request})` | `request` | Creates or updates one markdown document. |
+| `upsertDocuments({required RagUpsertDocumentsRequest request})` | `request` | Batch creates or updates markdown documents. |
+| `deleteDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | Deletes one RAG document. |
+| `syncDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | Triggers embeddings sync for one document. |
+| `syncBase({required String baseId})` | `baseId` | Triggers embeddings sync for one base. |
+| `retryFailed({String? baseId})` | `baseId` | Retries failed document sync jobs, optionally scoped to one base. |
+| `query({required RagQueryRequest request})` | `request` | Runs a semantic query against one RAG base. |
 
 ### LlmKitModule (`sdk.llmkit`)
 

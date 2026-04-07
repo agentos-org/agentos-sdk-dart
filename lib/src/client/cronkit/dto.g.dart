@@ -173,6 +173,9 @@ CronTaskListItem _$CronTaskListItemFromJson(Map<String, dynamic> json) =>
       schedule: json['schedule'] as String,
       enabled: json['enabled'] as bool,
       status: json['status'] as String,
+      spec: json['spec'] == null
+          ? null
+          : CronSpec.fromJson(json['spec'] as Map<String, dynamic>),
       lastRunAt: json['lastRunAt'] == null
           ? null
           : DateTime.parse(json['lastRunAt'] as String),
@@ -188,6 +191,7 @@ Map<String, dynamic> _$CronTaskListItemToJson(CronTaskListItem instance) =>
       'schedule': instance.schedule,
       'enabled': instance.enabled,
       'status': instance.status,
+      'spec': ?instance.spec,
       'lastRunAt': ?instance.lastRunAt?.toIso8601String(),
       'nextRunAt': ?instance.nextRunAt?.toIso8601String(),
     };
