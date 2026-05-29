@@ -24,6 +24,7 @@ import '../ragkit/ragkit_client.dart';
 import '../systemkit/dto.dart';
 import '../systemkit/systemkit_client.dart';
 import '../llmkit/llmkit_client.dart';
+import '../modelkit/modelkit_client.dart';
 import '../toolkit/toolkit_client.dart';
 
 /// Unified AgentOS SDK that manages Root, AgentKit, and AppKit APIs.
@@ -49,6 +50,7 @@ class AgentOSSDK {
   late final CronKitClient _cronKit = CronKitClient(apiClient: _apiClient);
   late final RagKitClient _ragKit = RagKitClient(apiClient: _apiClient);
   late final LlmKitClient _llmKit = LlmKitClient(apiClient: _apiClient);
+  late final ModelKitClient _modelKit = ModelKitClient(apiClient: _apiClient);
   late final ToolKitClient _toolKit = ToolKitClient(apiClient: _apiClient);
   final Map<_AppAuthCacheKey, String> _appTokens = <_AppAuthCacheKey, String>{};
   final Map<String, _AppAuthCacheKey> _tokenContexts =
@@ -73,6 +75,7 @@ class AgentOSSDK {
   late final CronKitModule cronkit = CronKitModule._(this);
   late final RagKitModule ragkit = RagKitModule._(this);
   late final LlmKitModule llmkit = LlmKitModule._(this);
+  late final ModelKitModule modelkit = ModelKitModule._(this);
   late final ToolKitModule toolkit = ToolKitModule._(this);
 
   static ApiClient _buildApiClient({
@@ -1064,6 +1067,30 @@ class LlmKitModule {
 
   Future<List<LlmModelInfo>> listModels() {
     return _client._llmKit.listModels();
+  }
+}
+
+/// Entry point for the task-oriented ModelKit API (chat / embedding / asr / tts).
+///
+/// New code should prefer [ModelKitModule] over [LlmKitModule]; the legacy
+/// module is kept for backward compatibility and routes through the same
+/// upstream service.
+class ModelKitModule {
+  ModelKitModule._(this._client);
+
+  final AgentOSSDK _client;
+
+  ModelKitChatClient get chat => _client._modelKit.chat;
+  ModelKitEmbeddingClient get embedding => _client._modelKit.embedding;
+  ModelKitAsrClient get asr => _client._modelKit.asr;
+  ModelKitTtsClient get tts => _client._modelKit.tts;
+
+  Future<List<ModelInfo>> listModels() {
+    return _client._modelKit.listModels();
+  }
+
+  Future<List<ModelInfo>> listModelsByTask(ModelTask task) {
+    return _client._modelKit.listModelsByTask(task);
   }
 }
 
