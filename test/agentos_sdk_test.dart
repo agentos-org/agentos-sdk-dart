@@ -487,42 +487,6 @@ void main() {
     });
   });
 
-  group('LlmKitModule', () {
-    test('lists available inference models from /llmkit/models', () async {
-      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
-        ..interceptors.add(_LlmKitInterceptor());
-      final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
-
-      final models = await sdk.llmkit.listModels();
-
-      expect(models.length, equals(3));
-      expect(models.first.id, equals('qwen3-8b'));
-      expect(models.first.type, equals('textGeneration'));
-      expect(models.first.category, equals(LlmModelCategory.textGeneration));
-      expect(models.first.alias, equals('qwen3-8b'));
-      expect(models.first.contextWindowSize, equals(8192));
-      expect(models.first.supportsTextInference, isTrue);
-      expect(models.first.isRemote, isFalse);
-      expect(models[1].id, equals('qwen2.5-vl-7b'));
-      expect(models[1].category, equals(LlmModelCategory.visionLanguage));
-      expect(models[1].isVisionLanguage, isTrue);
-      expect(models[2].id, equals('remote-gpt'));
-      expect(models[2].name, equals('gpt-4.1'));
-      expect(models[2].alias, equals('gpt-4.1'));
-      expect(models[2].isRemote, isTrue);
-      expect(models[2].isCustom, isTrue);
-    });
-
-    test('configures llmkit chat to use the text endpoint by default', () {
-      final sdk = AgentOSSDK(baseUrl: 'http://fake.local:8888');
-
-      expect(
-        sdk.llmkit.chat.baseUrl,
-        equals('http://fake.local:8888/llmkit/text'),
-      );
-    });
-  });
-
   group('ToolKitModule', () {
     test('lists tools from /toolkit/list', () async {
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
@@ -1848,65 +1812,6 @@ class _CronKitInterceptor extends Interceptor {
     'lastRunAt': DateTime.utc(2026, 1, 1, 8).toIso8601String(),
     'nextRunAt': DateTime.utc(2026, 1, 2, 9).toIso8601String(),
   };
-}
-
-class _LlmKitInterceptor extends Interceptor {
-  @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (options.path == '/llmkit/models') {
-      handler.resolve(
-        Response(
-          requestOptions: options,
-          statusCode: 200,
-          data: <Map<String, dynamic>>[
-            <String, dynamic>{
-              'id': 'qwen3-8b',
-              'name': 'qwen3-8b',
-              'alias': 'qwen3-8b',
-              'description': 'text model',
-              'type': 'textGeneration',
-              'contextWindowSize': 8192,
-              'isRemote': false,
-              'isCustom': false,
-            },
-            <String, dynamic>{
-              'id': 'qwen2.5-vl-7b',
-              'name': 'qwen2.5-vl-7b',
-              'alias': 'qwen2.5-vl-7b',
-              'description': 'vision-language model',
-              'type': 'image_text_to_text',
-              'contextWindowSize': 32768,
-              'isRemote': false,
-              'isCustom': false,
-            },
-            <String, dynamic>{
-              'id': 'remote-gpt',
-              'name': 'gpt-4.1',
-              'alias': 'gpt-4.1',
-              'description': 'remote custom model',
-              'type': 'textGeneration',
-              'contextWindowSize': 128000,
-              'isRemote': true,
-              'isCustom': true,
-            },
-          ],
-        ),
-      );
-      return;
-    }
-
-    handler.reject(
-      DioException(
-        requestOptions: options,
-        response: Response(
-          requestOptions: options,
-          statusCode: 404,
-          data: 'Unhandled path ${options.path}',
-        ),
-        type: DioExceptionType.badResponse,
-      ),
-    );
-  }
 }
 
 class _AppAuthRecoveryInterceptor extends Interceptor {

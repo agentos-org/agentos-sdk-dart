@@ -6,7 +6,7 @@ import 'package:dio/dio.dart';
 import '../../utils/api_client.dart';
 
 /// Task-oriented model classifier shared with the agentos-api ModelKit
-/// controller. Replaces the legacy IO-shape based `LlmModelCategory`.
+/// controller.
 enum ModelTask {
   chat('chat'),
   embedding('embedding'),
@@ -78,9 +78,8 @@ class ModelCapabilities {
 
 /// Model descriptor returned by `/modelkit/models`.
 ///
-/// Unlike the legacy [LlmModelInfo], ModelKit classifies models by [task] and
-/// uses [inputModalities] + [capabilities] to describe multimodal, tool, and
-/// streaming support.
+/// ModelKit classifies models by [task] and uses [inputModalities] +
+/// [capabilities] to describe multimodal, tool, and streaming support.
 class ModelInfo {
   ModelInfo({
     required this.id,

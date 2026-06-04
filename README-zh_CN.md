@@ -1,8 +1,8 @@
 # AgentOS SDK for Dart
 
 一个轻量的 Dart SDK，用于访问 AgentOS API，支持 Root、AgentKit、AppKit、
-CronKit、RagKit、LlmKit chat 和 ToolKit 发现接口。推荐使用统一的 `AgentOSSDK`，
-无需手动管理 token。
+CronKit、RagKit、ModelKit（chat / embedding / asr / tts）和 ToolKit 发现接口。
+推荐使用统一的 `AgentOSSDK`，无需手动管理 token。
 
 ## 功能
 
@@ -12,7 +12,8 @@ CronKit、RagKit、LlmKit chat 和 ToolKit 发现接口。推荐使用统一的 
 - AppKit API：bundle 注册与 SSE 订阅
 - CronKit API：定时任务 CRUD、运行记录与调度器控制
 - RagKit API：知识库、文档、同步与查询接口
-- LlmKit API：模型列表与指向 `/llmkit/text` 的 OpenAI 兼容 chat 客户端
+- ModelKit API：基于任务的模型列表，以及 `/modelkit/*` 下的 OpenAI 兼容
+  chat / embedding / asr / tts 客户端
 - ToolKit API：tool 列表、tool 定义读取与 tool 生命周期事件订阅
 
 ## 快速开始
@@ -100,7 +101,7 @@ final sdk = AgentOSSDK(
 );
 ```
 
-### 使用 LlmKit Chat
+### 使用 ModelKit Chat
 
 `agentos_sdk` 会重新导出 `package:dart_openai_sdk/dart_openai_sdk.dart`，
 因此可以直接使用 OpenAI chat 的请求和响应类型。
@@ -110,10 +111,13 @@ import 'package:agentos_sdk/agentos_sdk.dart';
 
 final sdk = AgentOSSDK(baseUrl: 'http://localhost:8888');
 
-final models = await sdk.llmkit.listModels();
-print(models.map((model) => model.alias).toList());
+final models = await sdk.modelkit.listModels();
+print(models.map((model) => '${model.alias} (${model.task.name})').toList());
 
-final completion = await sdk.llmkit.chat.create(
+// 也可以按任务过滤：
+final chatModels = await sdk.modelkit.listModelsByTask(ModelTask.chat);
+
+final completion = await sdk.modelkit.chat.create(
   model: 'qwen3-1.7b',
   messages: <OpenAIChatCompletionChoiceMessageModel>[
     OpenAIChatCompletionChoiceMessageModel(
@@ -127,6 +131,8 @@ final completion = await sdk.llmkit.chat.create(
 
 print(completion.choices.first.message.content?.first.text);
 ```
+
+`sdk.modelkit` 返回的是 `ModelInfo`，以 `task` + `capabilities` 分类。
 
 ## API 参考
 
@@ -150,7 +156,7 @@ AgentOSSDK({
 | `agentkit` | `AgentKitModule` | AgentKit 相关接口，内部处理 token。 |
 | `cronkit` | `CronKitModule` | CronKit 相关接口，内部处理 token。 |
 | `ragkit` | `RagKitModule` | RagKit 知识库接口，内部处理 token。 |
-| `llmkit` | `LlmKitModule` | LlmKit 模型列表与预配置 chat 客户端。 |
+| `modelkit` | `ModelKitModule` | ModelKit 基于任务的模型列表与 chat / embedding / asr / tts 客户端。 |
 | `toolkit` | `ToolKitModule` | ToolKit 发现接口与 tool 生命周期事件订阅。 |
 | `dispose()` | `Future<void>` | 释放 SDK 资源并取消当前 AppKit 订阅。 |
 
@@ -233,12 +239,21 @@ CronSpec(
 | `retryFailed({String? baseId})` | `baseId` | 重试失败的文档同步任务，可选限制到单个知识库。 |
 | `query({required RagQueryRequest request})` | `request` | 对指定知识库执行语义查询。 |
 
-### LlmKitModule（`sdk.llmkit`）
+### ModelKitModule（`sdk.modelkit`）
 
 | 方法/属性 | 类型 | 说明 |
 | --- | --- | --- |
-| `listModels()` | `Future<List<LlmModelInfo>>` | 从 `/llmkit/models` 获取可用模型列表。 |
-| `chat` | `LlmKitChatClient` | 预配置的 OpenAI 兼容 chat 客户端，默认使用 `{baseUrl}/llmkit/text`。 |
+| `listModels()` | `Future<List<ModelInfo>>` | 从 `/modelkit/models` 获取可用模型列表。 |
+| `listModelsByTask(ModelTask task)` | `Future<List<ModelInfo>>` | 按任务（`chat` / `embedding` / `asr` / `tts`）过滤模型。 |
+| `chat` | `ModelKitChatClient` | OpenAI 兼容 chat 客户端，使用 `{baseUrl}/modelkit/chat`。 |
+| `embedding` | `ModelKitEmbeddingClient` | `/modelkit/embedding` 下的 OpenAI 兼容 embeddings 客户端。 |
+| `asr` | `ModelKitAsrClient` | `/modelkit/asr` 下的语音转文字客户端。 |
+| `tts` | `ModelKitTtsClient` | `/modelkit/tts` 下的文字转语音客户端。 |
+
+`ModelInfo` 通过 `task`（`ModelTask`）、`inputModalities` / `outputModalities`
+（`Modality`）以及 `capabilities`（`ModelCapabilities`：`vision` / `toolCall` /
+`stream`）描述每个模型，并提供 `hasVision`、`supportsChatInference`、
+`isVisionLanguage` 等便捷 getter。
 
 ### ToolKitModule（`sdk.toolkit`）
 
@@ -347,11 +362,10 @@ class MyHandler extends AgentMessageHandler {
 ## 备注
 
 - 在调用需要 token 的 `agentkit`/`agentos`/`cronkit` 接口前，请先调用 `agentos.registerBundle`。
-- `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`、`cronkit`、`llmkit`、`toolkit`），便于按 API 领域区分。
+- `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`、`cronkit`、`ragkit`、`modelkit`、`toolkit`），便于按 API 领域区分。
 - AgentKit 接口通过 `/agentkit/*` 对外提供。
 - CronKit 接口通过 `/cronkit/*` 对外提供。
-- `sdk.llmkit.chat` 当前仅暴露 chat，默认请求
-  `/llmkit/text/chat/completions`。
+- `sdk.modelkit.chat` 请求 `/modelkit/chat/...`。
 - `sdk.toolkit.subscribeToolEvents(...)` 需要 daemon API key，并通过 SSE
   持续推送 tool 生命周期事件。
 - 外部集成应仅使用 `package:agentos_sdk/agentos_sdk.dart`，避免导入 `package:agentos_sdk/src/...`。

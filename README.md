@@ -1,8 +1,8 @@
 # AgentOS SDK for Dart
 
 A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, AppKit,
-CronKit, RagKit, LlmKit chat, and ToolKit discovery endpoints. Use the unified
-`AgentOSSDK` to avoid managing tokens manually.
+CronKit, RagKit, ModelKit (chat / embedding / asr / tts), and ToolKit discovery
+endpoints. Use the unified `AgentOSSDK` to avoid managing tokens manually.
 
 ## Features
 
@@ -12,8 +12,8 @@ CronKit, RagKit, LlmKit chat, and ToolKit discovery endpoints. Use the unified
 - AppKit API: bundle registration and SSE subscription
 - CronKit API: cron task CRUD, run history, and scheduler control
 - RagKit API: RAG base, document, sync, and query endpoints
-- LlmKit API: model listing and OpenAI-compatible chat client at
-  `/llmkit/text`
+- ModelKit API: task-oriented model listing and OpenAI-compatible chat /
+  embedding / asr / tts clients under `/modelkit/*`
 - ToolKit API: tool listing, tool definition loading, and tool lifecycle event
   subscription
 
@@ -102,7 +102,7 @@ final sdk = AgentOSSDK(
 );
 ```
 
-### Use LlmKit Chat
+### Use ModelKit Chat
 
 `agentos_sdk` re-exports `package:dart_openai_sdk/dart_openai_sdk.dart`, so you
 can use OpenAI chat request/response types directly.
@@ -112,10 +112,13 @@ import 'package:agentos_sdk/agentos_sdk.dart';
 
 final sdk = AgentOSSDK(baseUrl: 'http://localhost:8888');
 
-final models = await sdk.llmkit.listModels();
-print(models.map((model) => model.alias).toList());
+final models = await sdk.modelkit.listModels();
+print(models.map((model) => '${model.alias} (${model.task.name})').toList());
 
-final completion = await sdk.llmkit.chat.create(
+// Or filter by task:
+final chatModels = await sdk.modelkit.listModelsByTask(ModelTask.chat);
+
+final completion = await sdk.modelkit.chat.create(
   model: 'qwen3-1.7b',
   messages: <OpenAIChatCompletionChoiceMessageModel>[
     OpenAIChatCompletionChoiceMessageModel(
@@ -129,6 +132,8 @@ final completion = await sdk.llmkit.chat.create(
 
 print(completion.choices.first.message.content?.first.text);
 ```
+
+`sdk.modelkit` returns `ModelInfo`, classified by `task` + `capabilities`.
 
 ## API Reference
 
@@ -152,7 +157,7 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `agentkit` | `AgentKitModule` | AgentKit endpoints with internal token handling. |
 | `cronkit` | `CronKitModule` | CronKit task management endpoints with internal token handling. |
 | `ragkit` | `RagKitModule` | RagKit knowledge-base endpoints with internal token handling. |
-| `llmkit` | `LlmKitModule` | LlmKit model listing and preconfigured chat client. |
+| `modelkit` | `ModelKitModule` | ModelKit task-oriented model listing and chat / embedding / asr / tts clients. |
 | `toolkit` | `ToolKitModule` | ToolKit discovery endpoints and tool lifecycle event subscription. |
 | `dispose()` | `Future<void>` | Releases SDK resources and cancels active AppKit subscription. |
 
@@ -235,12 +240,21 @@ CronSpec(
 | `retryFailed({String? baseId})` | `baseId` | Retries failed document sync jobs, optionally scoped to one base. |
 | `query({required RagQueryRequest request})` | `request` | Runs a semantic query against one RAG base. |
 
-### LlmKitModule (`sdk.llmkit`)
+### ModelKitModule (`sdk.modelkit`)
 
 | Method/Property | Type | Description |
 | --- | --- | --- |
-| `listModels()` | `Future<List<LlmModelInfo>>` | Fetches available LLM models from `/llmkit/models`. |
-| `chat` | `LlmKitChatClient` | Preconfigured OpenAI-compatible chat client using `{baseUrl}/llmkit/text`. |
+| `listModels()` | `Future<List<ModelInfo>>` | Fetches available models from `/modelkit/models`. |
+| `listModelsByTask(ModelTask task)` | `Future<List<ModelInfo>>` | Returns models filtered by task (`chat` / `embedding` / `asr` / `tts`). |
+| `chat` | `ModelKitChatClient` | OpenAI-compatible chat client using `{baseUrl}/modelkit/chat`. |
+| `embedding` | `ModelKitEmbeddingClient` | OpenAI-compatible embeddings client under `/modelkit/embedding`. |
+| `asr` | `ModelKitAsrClient` | Speech-to-text client under `/modelkit/asr`. |
+| `tts` | `ModelKitTtsClient` | Text-to-speech client under `/modelkit/tts`. |
+
+`ModelInfo` describes each model with `task` (`ModelTask`), `inputModalities` /
+`outputModalities` (`Modality`), and `capabilities` (`ModelCapabilities`:
+`vision` / `toolCall` / `stream`). Convenience getters `hasVision`,
+`supportsChatInference`, and `isVisionLanguage` are provided.
 
 ### ToolKitModule (`sdk.toolkit`)
 
@@ -349,11 +363,10 @@ class MyHandler extends AgentMessageHandler {
 
 - Call `agentos.registerBundle` before using `agentkit`/`agentos` APIs that
   require a token.
-- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `llmkit`,
-  `toolkit`) for clearer separation of API areas.
+- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `cronkit`,
+  `ragkit`, `modelkit`, `toolkit`) for clearer separation of API areas.
 - AgentKit endpoints are exposed under `/agentkit/*`.
-- `sdk.llmkit.chat` currently exposes chat only and targets
-  `/llmkit/text/chat/completions` by default.
+- `sdk.modelkit.chat` targets `/modelkit/chat/...`.
 - `sdk.toolkit.subscribeToolEvents(...)` requires a daemon API key and streams
   tool lifecycle events via SSE.
 - External integrations should use only `package:agentos_sdk/agentos_sdk.dart`

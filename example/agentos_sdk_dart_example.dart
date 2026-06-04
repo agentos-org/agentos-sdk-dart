@@ -39,15 +39,15 @@ Future<void> main(List<String> args) async {
   await sdk.agentos.subscribe(_DemoEventHandler());
 
   /// HTTP:
-  /// GET http://localhost:8888/llmkit/models
-  final models = await sdk.llmkit.listModels();
+  /// GET http://localhost:8888/modelkit/models
+  final models = await sdk.modelkit.listModels();
   print(
-    'Available llmkit models: ${models.map((m) => "${m.alias}(${m.category.name})").join(", ")}',
+    'Available modelkit models: ${models.map((m) => "${m.alias}(${m.task.name})").join(", ")}',
   );
 
   /// HTTP:
-  /// POST http://localhost:8888/llmkit/text/chat/completions
-  final chatCompletion = await sdk.llmkit.chat.create(
+  /// POST http://localhost:8888/modelkit/chat/v1/chat/completions
+  final chatCompletion = await sdk.modelkit.chat.create(
     model: llmModel,
     messages: <OpenAIChatCompletionChoiceMessageModel>[
       OpenAIChatCompletionChoiceMessageModel(

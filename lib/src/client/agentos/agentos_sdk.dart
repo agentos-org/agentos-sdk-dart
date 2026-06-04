@@ -23,7 +23,6 @@ import '../ragkit/dto.dart';
 import '../ragkit/ragkit_client.dart';
 import '../systemkit/dto.dart';
 import '../systemkit/systemkit_client.dart';
-import '../llmkit/llmkit_client.dart';
 import '../modelkit/modelkit_client.dart';
 import '../toolkit/toolkit_client.dart';
 
@@ -49,7 +48,6 @@ class AgentOSSDK {
   late final AppKitClient _appKit = AppKitClient(apiClient: _apiClient);
   late final CronKitClient _cronKit = CronKitClient(apiClient: _apiClient);
   late final RagKitClient _ragKit = RagKitClient(apiClient: _apiClient);
-  late final LlmKitClient _llmKit = LlmKitClient(apiClient: _apiClient);
   late final ModelKitClient _modelKit = ModelKitClient(apiClient: _apiClient);
   late final ToolKitClient _toolKit = ToolKitClient(apiClient: _apiClient);
   final Map<_AppAuthCacheKey, String> _appTokens = <_AppAuthCacheKey, String>{};
@@ -74,7 +72,6 @@ class AgentOSSDK {
   late final AgentKitModule agentkit = AgentKitModule._(this);
   late final CronKitModule cronkit = CronKitModule._(this);
   late final RagKitModule ragkit = RagKitModule._(this);
-  late final LlmKitModule llmkit = LlmKitModule._(this);
   late final ModelKitModule modelkit = ModelKitModule._(this);
   late final ToolKitModule toolkit = ToolKitModule._(this);
 
@@ -1058,23 +1055,7 @@ class AgentKitModule {
   }
 }
 
-class LlmKitModule {
-  LlmKitModule._(this._client);
-
-  final AgentOSSDK _client;
-
-  LlmKitChatClient get chat => _client._llmKit.chat;
-
-  Future<List<LlmModelInfo>> listModels() {
-    return _client._llmKit.listModels();
-  }
-}
-
 /// Entry point for the task-oriented ModelKit API (chat / embedding / asr / tts).
-///
-/// New code should prefer [ModelKitModule] over [LlmKitModule]; the legacy
-/// module is kept for backward compatibility and routes through the same
-/// upstream service.
 class ModelKitModule {
   ModelKitModule._(this._client);
 
