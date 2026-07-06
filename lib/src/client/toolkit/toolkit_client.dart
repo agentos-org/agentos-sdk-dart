@@ -16,85 +16,20 @@ class ToolKitStreamEvent {
   final Map<String, dynamic> data;
 }
 
-class ToolKitServerRef {
-  ToolKitServerRef({required this.repo, required this.name, required this.tag});
-
-  final String repo;
-  final String name;
-  final String tag;
-
-  factory ToolKitServerRef.fromJson(Map<String, dynamic> json) {
-    return ToolKitServerRef(
-      repo: (json['repo'] ?? '').toString(),
-      name: (json['name'] ?? '').toString(),
-      tag: (json['tag'] ?? '').toString(),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return <String, dynamic>{'repo': repo, 'name': name, 'tag': tag};
-  }
-}
-
-class ToolKitToolDto extends ToolDto {
-  ToolKitToolDto({
-    required super.id,
-    required super.alias,
-    required super.host,
-    required super.port,
-    required super.status,
-    super.serverId,
-    this.server,
-  });
-
-  final ToolKitServerRef? server;
-
-  factory ToolKitToolDto.fromJson(Map<String, dynamic> json) {
-    final server = json['server'];
-    return ToolKitToolDto(
-      id: (json['id'] ?? '').toString(),
-      alias: (json['alias'] ?? '').toString(),
-      host: (json['host'] ?? '').toString(),
-      port: (json['port'] as num?)?.toInt() ?? 0,
-      status: (json['status'] ?? '').toString(),
-      serverId: json['serverId']?.toString(),
-      server: server is Map
-          ? ToolKitServerRef.fromJson(Map<String, dynamic>.from(server))
-          : null,
-    );
-  }
-
-  @override
-  Map<String, dynamic> toJson() {
-    return <String, dynamic>{
-      'id': id,
-      'alias': alias,
-      'host': host,
-      'port': port,
-      'status': status,
-      if (serverId != null) 'serverId': serverId,
-      if (server != null) 'server': server!.toJson(),
-    };
-  }
-}
-
 class ToolKitClient {
   ToolKitClient({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
   final ApiClient _apiClient;
 
-  Future<List<ToolKitToolDto>> listTool([String? all]) {
+  Future<List<ToolDto>> listTool([String? all]) {
     return _listTools(all: all);
   }
 
-  Future<List<ToolKitToolDto>> listTools({String? bearerToken, String? all}) {
+  Future<List<ToolDto>> listTools({String? bearerToken, String? all}) {
     return _listTools(bearerToken: bearerToken, all: all);
   }
 
-  Future<List<ToolKitToolDto>> _listTools({
-    String? bearerToken,
-    String? all,
-  }) async {
+  Future<List<ToolDto>> _listTools({String? bearerToken, String? all}) async {
     final queryParameters = all != null && all.isNotEmpty
         ? <String, dynamic>{'all': all}
         : null;
@@ -105,7 +40,7 @@ class ToolKitClient {
     );
     return _asJsonList(
       response.data,
-    ).map((item) => ToolKitToolDto.fromJson(item)).toList();
+    ).map((item) => ToolDto.fromJson(item)).toList();
   }
 
   Future<OpenTool?> loadTool(String toolId, {String? bearerToken}) async {

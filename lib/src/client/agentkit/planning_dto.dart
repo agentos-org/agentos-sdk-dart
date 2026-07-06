@@ -34,9 +34,9 @@ class Plan {
   String name;
   PlanModel model;
   String prompt;
-  @JsonKey(defaultValue: const <PlanTool>[])
+  @JsonKey(defaultValue: <PlanTool>[])
   List<PlanTool> tools;
-  @JsonKey(defaultValue: const <Plan>[])
+  @JsonKey(defaultValue: <Plan>[])
   List<Plan> subPlans;
 
   Plan({

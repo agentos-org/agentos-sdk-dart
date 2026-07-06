@@ -1080,11 +1080,11 @@ class ToolKitModule {
 
   final AgentOSSDK _client;
 
-  Future<List<ToolKitToolDto>> listTool([String? all]) {
+  Future<List<ToolDto>> listTool([String? all]) {
     return listTools(all: all);
   }
 
-  Future<List<ToolKitToolDto>> listTools({String? all}) {
+  Future<List<ToolDto>> listTools({String? all}) {
     return _client._withAppAuthRetry(
       (bearerToken) =>
           _client._toolKit.listTools(bearerToken: bearerToken, all: all),
