@@ -1,3 +1,7 @@
+## 0.4.1
+
+- feat: align toolkit SDK with gateway API
+
 ## 0.4.0
 
 - feat: add the `ModelKit` API (`sdk.modelkit`) with task-oriented model listing and OpenAI-compatible chat / embedding / asr / tts clients under `/modelkit/*`; document it in README/README-zh_CN and use it in the example.
