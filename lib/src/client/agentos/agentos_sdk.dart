@@ -1080,14 +1080,51 @@ class ToolKitModule {
 
   final AgentOSSDK _client;
 
-  Future<List<ToolDto>> listTool([String? all]) {
-    return _client._toolKit.listTool(all);
+  Future<List<ToolKitToolDto>> listTool([String? all]) {
+    return listTools(all: all);
+  }
+
+  Future<List<ToolKitToolDto>> listTools({String? all}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._toolKit.listTools(bearerToken: bearerToken, all: all),
+    );
   }
 
   Future<OpenTool?> loadTool(String toolId) {
-    return _client._toolKit.loadTool(toolId);
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._toolKit.loadTool(toolId, bearerToken: bearerToken),
+    );
   }
 
+  Future<ToolReturn> callTool({
+    required String toolId,
+    required FunctionCall functionCall,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._toolKit.callTool(
+        bearerToken: bearerToken,
+        toolId: toolId,
+        functionCall: functionCall,
+      ),
+    );
+  }
+
+  Future<Stream<ToolKitStreamEvent>> streamCallTool({
+    required String toolId,
+    required FunctionCall functionCall,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._toolKit.streamCallTool(
+        bearerToken: bearerToken,
+        toolId: toolId,
+        functionCall: functionCall,
+      ),
+    );
+  }
+
+  @Deprecated('Not exposed by the AgentOS API gateway ToolKit API.')
   Future<Stream<ToolLifecycleEventDto>> subscribeToolEvents({
     required String daemonApiKey,
     bool snapshot = true,

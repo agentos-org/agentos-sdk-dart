@@ -492,19 +492,26 @@ void main() {
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
         ..interceptors.add(_ToolKitInterceptor());
       final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.toolkit');
 
       final tools = await sdk.toolkit.listTool();
 
       expect(tools.length, equals(2));
       expect(tools.first.id, equals('tool-weather'));
       expect(tools.first.status, equals('running'));
+      expect(tools.first.serverId, equals('server-weather'));
+      expect(tools.first.server?.repo, equals('opentool-server-weather'));
+      expect(tools.first.server?.name, equals('opentool-server-weather'));
+      expect(tools.first.server?.tag, equals('0.1.0'));
       expect(tools[1].alias, equals('calendar'));
+      expect(tools[1].server, isNull);
     });
 
     test('loads tool definition from /toolkit/{toolId}/load', () async {
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
         ..interceptors.add(_ToolKitInterceptor());
       final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.toolkit');
 
       final tool = await sdk.toolkit.loadTool('tool-weather');
 
@@ -514,23 +521,49 @@ void main() {
       expect(tool.server?.url, equals('http://127.0.0.1:9100'));
     });
 
-    test('subscribes to tool lifecycle events from /toolkit/events', () async {
+    test('calls tool function via /toolkit/{toolId}/call', () async {
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
         ..interceptors.add(_ToolKitInterceptor());
       final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.toolkit');
 
-      final events = await (await sdk.toolkit.subscribeToolEvents(
-        daemonApiKey: 'daemon-key',
-      )).toList();
+      final result = await sdk.toolkit.callTool(
+        toolId: 'tool-weather',
+        functionCall: FunctionCall(
+          id: 'call-001',
+          name: 'status',
+          arguments: <String, dynamic>{'depth': 1},
+        ),
+      );
 
-      expect(events, hasLength(2));
-      expect(events.first.type, equals('tool.snapshot'));
-      expect(events.first.reason, equals('snapshot'));
-      expect(events.first.tool.id, equals('tool-weather'));
-      expect(events.last.type, equals('tool.ready'));
-      expect(events.last.reason, equals('started'));
-      expect(events.last.tool.status, equals('running'));
+      expect(result.id, equals('call-001'));
+      expect(result.result['ok'], isTrue);
     });
+
+    test(
+      'streams tool function events via /toolkit/{toolId}/streamCall',
+      () async {
+        final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+          ..interceptors.add(_ToolKitInterceptor());
+        final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+        await sdk.agentos.registerBundle(bundleId: 'com.demo.toolkit');
+
+        final events = await (await sdk.toolkit.streamCallTool(
+          toolId: 'tool-weather',
+          functionCall: FunctionCall(
+            id: 'call-002',
+            name: 'status',
+            arguments: <String, dynamic>{'depth': 2},
+          ),
+        )).toList();
+
+        expect(
+          events.map((event) => event.event),
+          equals(<String>['START', 'DATA', 'DONE']),
+        );
+        expect(events[1].data['ok'], isTrue);
+      },
+    );
   });
 
   group('AppKitClient', () {
@@ -2337,7 +2370,22 @@ class _RagKitInterceptor extends Interceptor {
 class _ToolKitInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path == '/appkit/register') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{
+            'token': 'toolkit-token',
+            'bundleId': 'com.demo.toolkit',
+          },
+        ),
+      );
+      return;
+    }
+
     if (options.path == '/toolkit/list') {
+      _expectToolKitAuth(options);
       handler.resolve(
         Response(
           requestOptions: options,
@@ -2350,6 +2398,11 @@ class _ToolKitInterceptor extends Interceptor {
               'port': 9100,
               'status': 'running',
               'serverId': 'server-weather',
+              'server': <String, dynamic>{
+                'repo': 'opentool-server-weather',
+                'name': 'opentool-server-weather',
+                'tag': '0.1.0',
+              },
             },
             <String, dynamic>{
               'id': 'tool-calendar',
@@ -2366,6 +2419,7 @@ class _ToolKitInterceptor extends Interceptor {
     }
 
     if (options.path == '/toolkit/tool-weather/load') {
+      _expectToolKitAuth(options);
       handler.resolve(
         Response(
           requestOptions: options,
@@ -2385,18 +2439,42 @@ class _ToolKitInterceptor extends Interceptor {
       return;
     }
 
-    if (options.path == '/toolkit/events') {
-      expect(options.queryParameters['snapshot'], equals('1'));
-      expect(options.headers[TOOL_API_KEY_HEADER], equals('daemon-key'));
+    if (options.path == '/toolkit/tool-weather/call') {
+      _expectToolKitAuth(options);
+      expect(options.data, isA<Map<String, dynamic>>());
+      final data = Map<String, dynamic>.from(options.data as Map);
+      expect(data['id'], equals('call-001'));
+      expect(data['name'], equals('status'));
+      expect(data['arguments'], equals(<String, dynamic>{'depth': 1}));
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, dynamic>{
+            'id': 'call-001',
+            'result': <String, dynamic>{'ok': true},
+          },
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/toolkit/tool-weather/streamCall') {
+      _expectToolKitAuth(options);
+      expect(options.responseType, equals(ResponseType.stream));
+      expect(options.data, isA<Map<String, dynamic>>());
+      final data = Map<String, dynamic>.from(options.data as Map);
+      expect(data['id'], equals('call-002'));
+      expect(data['name'], equals('status'));
       final body = ResponseBody.fromString(
-        'event: ready\n'
-        'data: {}\n'
+        'event: START\n'
+        'data: {"name":"status"}\n'
         '\n'
-        'event: tool.snapshot\n'
-        'data: {"type":"tool.snapshot","reason":"snapshot","tool":{"id":"tool-weather","alias":"weather","host":"127.0.0.1","port":9100,"status":"running","serverId":"server-weather"},"occurredAt":"2026-03-09T00:00:00.000Z"}\n'
+        'event: DATA\n'
+        'data: {"ok":true}\n'
         '\n'
-        'event: tool.ready\n'
-        'data: {"type":"tool.ready","reason":"started","tool":{"id":"tool-weather","alias":"weather","host":"127.0.0.1","port":9100,"status":"running","serverId":"server-weather"},"occurredAt":"2026-03-09T00:00:01.000Z"}\n'
+        'event: DONE\n'
+        'data: {"done":"status"}\n'
         '\n',
         200,
         headers: <String, List<String>>{
@@ -2423,6 +2501,13 @@ class _ToolKitInterceptor extends Interceptor {
         ),
         type: DioExceptionType.badResponse,
       ),
+    );
+  }
+
+  void _expectToolKitAuth(RequestOptions options) {
+    expect(
+      options.headers[HttpHeaders.authorizationHeader],
+      equals('Bearer toolkit-token'),
     );
   }
 }
