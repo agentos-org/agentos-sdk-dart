@@ -23,6 +23,20 @@ Future<void> main(List<String> args) async {
     'Registered bundle (bundleId: ${registration.bundleId}, appGroupId: ${registration.appGroupId})',
   );
 
+  if (args.length >= 2 && args.first == '--history') {
+    final messages = await sdk.agentkit.history(
+      sessionId: args[1],
+      page: 1,
+      pageSize: 50,
+    );
+    for (final message in messages) {
+      print(
+        'History task ${message.taskId} '
+        '(root: ${message.originalTaskId}): ${message.content}',
+      );
+    }
+  }
+
   sdk.agentos.connectionEvents.listen((event) {
     print(
       'Subscribe connection status: ${event.status.name}'

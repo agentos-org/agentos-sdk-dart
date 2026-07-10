@@ -214,7 +214,7 @@ CronSpec(
 | `initSimple({required SimpleCapability simpleCapability})` | `simpleCapability` | 初始化 SimpleAgent 会话。 |
 | `chat(Session session, UserTask userTask, AgentMessageHandler agentMessageHandler)` | `session`, `userTask`, `agentMessageHandler` | 启动 SessionAgent 任务，并通过回调处理 SSE 事件。 |
 | `chatSimple({required String sessionId, required UserTask userTask})` | `sessionId`, `userTask` | 执行 SimpleAgent 请求并返回一次性响应。 |
-| `history({required String sessionId})` | `sessionId` | 获取会话历史消息。 |
+| `history({required String sessionId, int? page, int? pageSize})` | `sessionId`、`page`、`pageSize` | 获取强类型会话历史。分页时必须成对传入正整数 `page` 和 `pageSize`，页码从 1 开始；两者都省略时获取完整历史。 |
 | `stop({required String sessionId, String? taskId})` | `sessionId`, `taskId` | 停止会话或任务。 |
 | `clear({required String sessionId})` | `sessionId` | 清除会话数据。 |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | 发送工具回调结果。 |
@@ -305,6 +305,8 @@ await sdk.dispose();
 - `AgentMessage.completions` 支持 `limits`：
   - `maxTokens`
   - `contextWindowSize`
+- `AgentMessage.originalTaskId` 标识根任务；读取旧响应时会回退为 `taskId`。
+- `TaskStatus.taskId` 标识状态更新关联的任务。
 
 ### AgentMessageHandler（工具回调）
 

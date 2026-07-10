@@ -136,16 +136,40 @@ class AgentKitClient {
     return _asJsonMap(response.data);
   }
 
-  Future<List<dynamic>> history({
+  Future<List<AgentMessage>> history({
     required String bearerToken,
     required String sessionId,
+    int? page,
+    int? pageSize,
   }) async {
+    if ((page == null) != (pageSize == null)) {
+      throw ArgumentError('page and pageSize must be provided together');
+    }
+    if (page != null && page <= 0) {
+      throw ArgumentError.value(page, 'page', 'must be a positive integer');
+    }
+    if (pageSize != null && pageSize <= 0) {
+      throw ArgumentError.value(
+        pageSize,
+        'pageSize',
+        'must be a positive integer',
+      );
+    }
     final Response<dynamic> response = await _apiClient.dio.get(
       '/agentkit/history',
-      queryParameters: Session(sessionId: sessionId).toJson(),
+      queryParameters: <String, dynamic>{
+        ...Session(sessionId: sessionId).toJson(),
+        if (page != null) 'page': page,
+        if (pageSize != null) 'pageSize': pageSize,
+      },
       options: _authOptions(bearerToken),
     );
-    return _asJsonList(response.data);
+    return _asJsonList(response.data)
+        .map(
+          (item) =>
+              AgentMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList();
   }
 
   Future<Map<String, dynamic>> stop({

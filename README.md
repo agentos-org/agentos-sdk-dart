@@ -215,7 +215,7 @@ CronSpec(
 | `initSimple({required SimpleCapability simpleCapability})` | `simpleCapability` | Initializes a SimpleAgent session. |
 | `chat(Session session, UserTask userTask, AgentMessageHandler agentMessageHandler)` | `session`, `userTask`, `agentMessageHandler` | Starts a SessionAgent task and delivers SSE events to the handler callbacks. |
 | `chatSimple({required String sessionId, required UserTask userTask})` | `sessionId`, `userTask` | Executes a SimpleAgent request and returns a one-time response. |
-| `history({required String sessionId})` | `sessionId` | Retrieves message history for a session. |
+| `history({required String sessionId, int? page, int? pageSize})` | `sessionId`, `page`, `pageSize` | Retrieves typed message history. Supply positive, 1-based `page` and `pageSize` together for pagination, or omit both for the complete history. |
 | `stop({required String sessionId, String? taskId})` | `sessionId`, `taskId` | Stops a session or task. |
 | `clear({required String sessionId})` | `sessionId` | Clears session data. |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | Sends tool callback results. |
@@ -303,6 +303,9 @@ await sdk.dispose();
 - `AgentMessage.completions` supports `limits`:
   - `maxTokens`
   - `contextWindowSize`
+- `AgentMessage.originalTaskId` identifies the root task and falls back to
+  `taskId` when reading older responses.
+- `TaskStatus.taskId` identifies the task associated with a status update.
 
 ### AgentMessageHandler (Tool Callback)
 

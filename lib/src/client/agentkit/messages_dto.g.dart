@@ -20,6 +20,7 @@ Map<String, dynamic> _$AgentEventToJson(AgentEvent instance) =>
 AgentMessage _$AgentMessageFromJson(Map<String, dynamic> json) => AgentMessage(
   sessionId: json['sessionId'] as String,
   agentId: json['agentId'] as String?,
+  originalTaskId: _readOriginalTaskId(json, 'originalTaskId') as String?,
   parentTaskId: json['parentTaskId'] as String?,
   taskId: json['taskId'] as String,
   role: json['role'] as String,
@@ -37,6 +38,7 @@ Map<String, dynamic> _$AgentMessageToJson(AgentMessage instance) =>
     <String, dynamic>{
       'sessionId': instance.sessionId,
       'agentId': ?instance.agentId,
+      'originalTaskId': instance.originalTaskId,
       'parentTaskId': ?instance.parentTaskId,
       'taskId': instance.taskId,
       'role': instance.role,
@@ -170,12 +172,14 @@ Map<String, dynamic> _$DispatchToJson(Dispatch instance) => <String, dynamic>{
 
 TaskStatus _$TaskStatusFromJson(Map<String, dynamic> json) => TaskStatus(
   status: json['status'] as String,
+  taskId: json['taskId'] as String?,
   description: json['description'] as Map<String, dynamic>?,
 );
 
 Map<String, dynamic> _$TaskStatusToJson(TaskStatus instance) =>
     <String, dynamic>{
       'status': instance.status,
+      'taskId': ?instance.taskId,
       'description': ?instance.description,
     };
 

@@ -5,6 +5,9 @@ import 'common_dto.dart';
 
 part 'messages_dto.g.dart';
 
+Object? _readOriginalTaskId(Map<dynamic, dynamic> json, String key) =>
+    json[key] ?? json['taskId'];
+
 @JsonSerializable()
 class AgentEvent {
   String
@@ -23,6 +26,8 @@ class AgentEvent {
 class AgentMessage {
   String sessionId;
   String? agentId;
+  @JsonKey(readValue: _readOriginalTaskId)
+  String originalTaskId;
   String? parentTaskId;
   String taskId;
   String role;
@@ -39,6 +44,7 @@ class AgentMessage {
   AgentMessage({
     required this.sessionId,
     this.agentId,
+    String? originalTaskId,
     this.parentTaskId,
     required this.taskId,
     required this.role,
@@ -48,7 +54,7 @@ class AgentMessage {
     this.reasoningContent,
     this.completions,
     required this.createTime,
-  });
+  }) : originalTaskId = originalTaskId ?? taskId;
 
   factory AgentMessage.fromJson(Map<String, dynamic> json) =>
       _$AgentMessageFromJson(json);
@@ -200,9 +206,10 @@ class Dispatch {
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class TaskStatus {
   String status;
+  String? taskId;
   Map<String, dynamic>? description;
 
-  TaskStatus({required this.status, this.description});
+  TaskStatus({required this.status, this.taskId, this.description});
 
   factory TaskStatus.fromJson(Map<String, dynamic> json) =>
       _$TaskStatusFromJson(json);

@@ -918,11 +918,17 @@ class AgentKitModule {
   }
 
   /// Retrieves message history for a session via AgentKit.
-  Future<List<dynamic>> history({required String sessionId}) {
+  Future<List<AgentMessage>> history({
+    required String sessionId,
+    int? page,
+    int? pageSize,
+  }) {
     return _client._withAppAuthRetry(
       (bearerToken) => _client._agentKit.history(
         bearerToken: bearerToken,
         sessionId: sessionId,
+        page: page,
+        pageSize: pageSize,
       ),
     );
   }

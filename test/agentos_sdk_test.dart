@@ -87,6 +87,7 @@ void main() {
     test('parses completions limits passthrough fields for liteagent', () {
       final message = AgentMessage.fromJson(<String, dynamic>{
         'sessionId': 's1',
+        'originalTaskId': 'root-task',
         'taskId': 't1',
         'role': 'assistant',
         'to': 'client',
@@ -110,6 +111,29 @@ void main() {
 
       expect(message.completions?.limits?.maxTokens, equals(4096));
       expect(message.completions?.limits?.contextWindowSize, equals(8192));
+      expect(message.originalTaskId, equals('root-task'));
+      expect(message.toJson()['originalTaskId'], equals('root-task'));
+    });
+
+    test('falls back originalTaskId and parses task status taskId', () {
+      final message = AgentMessage.fromJson(<String, dynamic>{
+        'sessionId': 's1',
+        'taskId': 'legacy-task',
+        'role': 'assistant',
+        'to': 'client',
+        'type': 'taskStatus',
+        'content': <String, dynamic>{'status': 'done', 'taskId': 'child-task'},
+        'createTime': DateTime.utc(2026, 1, 1).toIso8601String(),
+      });
+      final taskStatus = TaskStatus.fromJson(
+        Map<String, dynamic>.from(message.content as Map),
+      );
+
+      expect(message.originalTaskId, equals('legacy-task'));
+      expect(message.toJson()['originalTaskId'], equals('legacy-task'));
+      expect(taskStatus.status, equals('done'));
+      expect(taskStatus.taskId, equals('child-task'));
+      expect(taskStatus.toJson()['taskId'], equals('child-task'));
     });
   });
 
@@ -484,6 +508,62 @@ void main() {
         (event) => event.agentEventType == 'functionCall',
       );
       expect(functionCallEvent.data, contains('"functionCall"'));
+    });
+
+    test('retrieves typed paginated history', () async {
+      final interceptor = _AgentKitInterceptor();
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(interceptor);
+      final client = AgentKitClient(apiClient: ApiClient(dio: dio));
+
+      final messages = await client.history(
+        bearerToken: 'token-123',
+        sessionId: 'sess-123',
+        page: 2,
+        pageSize: 50,
+      );
+
+      expect(interceptor.historyPage, equals(2));
+      expect(interceptor.historyPageSize, equals(50));
+      expect(messages, hasLength(1));
+      expect(messages.single.originalTaskId, equals('root-task'));
+      expect(messages.single.taskId, equals('child-task'));
+    });
+
+    test('rejects incomplete or invalid history pagination', () async {
+      final client = AgentKitClient(
+        apiClient: ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+            ..interceptors.add(_AgentKitInterceptor()),
+        ),
+      );
+
+      expect(
+        () => client.history(
+          bearerToken: 'token-123',
+          sessionId: 'sess-123',
+          page: 1,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => client.history(
+          bearerToken: 'token-123',
+          sessionId: 'sess-123',
+          page: 0,
+          pageSize: 50,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => client.history(
+          bearerToken: 'token-123',
+          sessionId: 'sess-123',
+          page: 1,
+          pageSize: 0,
+        ),
+        throwsArgumentError,
+      );
     });
   });
 
@@ -1364,6 +1444,9 @@ class _CountingEventHandler extends AgentOSEventHandler {
 }
 
 class _AgentKitInterceptor extends Interceptor {
+  int? historyPage;
+  int? historyPageSize;
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final bearer = (options.headers[HttpHeaders.authorizationHeader] ?? '')
@@ -1411,6 +1494,31 @@ class _AgentKitInterceptor extends Interceptor {
           requestOptions: options,
           statusCode: 200,
           data: <String, String>{'sessionId': 'sess-123', 'content': 'hello'},
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/agentkit/history') {
+      historyPage = options.queryParameters['page'] as int?;
+      historyPageSize = options.queryParameters['pageSize'] as int?;
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'sessionId': 'sess-123',
+              'originalTaskId': 'root-task',
+              'parentTaskId': 'root-task',
+              'taskId': 'child-task',
+              'role': 'agent',
+              'to': 'user',
+              'type': 'text',
+              'content': 'done',
+              'createTime': DateTime.utc(2026, 7, 10).toIso8601String(),
+            },
+          ],
         ),
       );
       return;
