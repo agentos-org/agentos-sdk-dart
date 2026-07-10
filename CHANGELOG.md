@@ -1,3 +1,9 @@
+## 0.5.0
+
+- feat: add typed AgentKit history responses with optional paired pagination.
+- feat: expose AgentKit root task and task status metadata with legacy response compatibility.
+- fix: use upstream ToolKit server metadata returned by the gateway.
+
 ## 0.4.1
 
 - feat: align toolkit SDK with gateway API
