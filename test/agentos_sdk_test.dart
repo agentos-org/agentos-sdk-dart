@@ -135,6 +135,47 @@ void main() {
       expect(taskStatus.taskId, equals('child-task'));
       expect(taskStatus.toJson()['taskId'], equals('child-task'));
     });
+
+    test('round-trips history turn summaries with nested DTOs', () {
+      final summary = HistoryTurnSummaryDto.fromJson(<String, dynamic>{
+        'originalTaskId': 'root-task',
+        'sessionId': 'root-session',
+        'userMessage': <String, dynamic>{
+          'sessionId': 'root-session',
+          'originalTaskId': 'root-task',
+          'taskId': 'root-task',
+          'role': 'user',
+          'to': 'agent',
+          'type': 'text',
+          'content': 'hello',
+          'createTime': '2026-07-12T10:00:00.000Z',
+        },
+        'finalMessage': null,
+        'status': HistoryTurnStatus.running,
+        'error': null,
+        'createdAt': '2026-07-12T10:00:00.000Z',
+        'completedAt': null,
+        'durationMs': null,
+        'usage': <String, dynamic>{
+          'promptTokens': 10,
+          'completionTokens': 2,
+          'totalTokens': 12,
+          'contextUsageRatio': null,
+        },
+        'processMessageCount': 3,
+      });
+
+      expect(summary.userMessage, isA<AgentMessage>());
+      expect(summary.usage, isA<TokenUsage>());
+      final json = summary.toJson();
+      expect(json['userMessage'], isA<Map<String, dynamic>>());
+      expect(json['usage'], isA<Map<String, dynamic>>());
+      expect(json['finalMessage'], isNull);
+      expect(json['error'], isNull);
+      expect(json['completedAt'], isNull);
+      expect(json['durationMs'], isNull);
+      expect(HistoryTurnSummaryDto.fromJson(json).toJson(), equals(json));
+    });
   });
 
   group('AgentOSSDK configuration', () {
@@ -565,6 +606,107 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test('retrieves typed summary and process history', () async {
+      final interceptor = _AgentKitInterceptor();
+      final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+        ..interceptors.add(interceptor);
+      final client = AgentKitClient(apiClient: ApiClient(dio: dio));
+
+      final summaries = await client.historySummary(
+        bearerToken: 'token-123',
+        sessionId: 'root-session',
+        page: 2,
+        pageSize: 25,
+      );
+      final process = await client.historyProcess(
+        bearerToken: 'token-123',
+        sessionId: 'root-session',
+        originalTaskId: 'root-task',
+        page: 3,
+        pageSize: 40,
+      );
+
+      expect(summaries.single.status, HistoryTurnStatus.done);
+      expect(summaries.single.userMessage, isA<AgentMessage>());
+      expect(summaries.single.usage, isA<TokenUsage>());
+      expect(process.single.sessionId, 'child-session');
+      expect(interceptor.historySummaryQuery, <String, dynamic>{
+        'sessionId': 'root-session',
+        'page': 2,
+        'pageSize': 25,
+      });
+      expect(interceptor.historyProcessQuery, <String, dynamic>{
+        'sessionId': 'root-session',
+        'originalTaskId': 'root-task',
+        'page': 3,
+        'pageSize': 40,
+      });
+    });
+
+    test('validates summary and process history parameters', () async {
+      final client = AgentKitClient(
+        apiClient: ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+            ..interceptors.add(_AgentKitInterceptor()),
+        ),
+      );
+
+      for (final call in <Future<void> Function()>[
+        () async => client.historySummary(
+          bearerToken: 'token-123',
+          sessionId: 'root-session',
+          page: 0,
+        ),
+        () async => client.historySummary(
+          bearerToken: 'token-123',
+          sessionId: 'root-session',
+          pageSize: 201,
+        ),
+        () async => client.historyProcess(
+          bearerToken: 'token-123',
+          sessionId: 'root-session',
+          originalTaskId: '  ',
+        ),
+        () async => client.historyProcess(
+          bearerToken: 'token-123',
+          sessionId: 'root-session',
+          originalTaskId: 'root-task',
+          pageSize: 0,
+        ),
+      ]) {
+        expect(call, throwsArgumentError);
+      }
+    });
+
+    test(
+      'exposes summary and process history through AgentKitModule',
+      () async {
+        final interceptor = _AgentKitInterceptor();
+        final sdk = AgentOSSDK(
+          apiClient: ApiClient(
+            dio: Dio(BaseOptions(baseUrl: 'http://fake.local'))
+              ..interceptors.add(interceptor),
+          ),
+        );
+        await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+
+        final summaries = await sdk.agentkit.historySummary(
+          sessionId: 'root-session',
+        );
+        final process = await sdk.agentkit.historyProcess(
+          sessionId: 'root-session',
+          originalTaskId: 'root-task',
+        );
+
+        expect(summaries.single.originalTaskId, 'root-task');
+        expect(process.single.sessionId, 'child-session');
+        expect(interceptor.historySummaryQuery?['page'], 1);
+        expect(interceptor.historySummaryQuery?['pageSize'], 30);
+        expect(interceptor.historyProcessQuery?['page'], 1);
+        expect(interceptor.historyProcessQuery?['pageSize'], 50);
+      },
+    );
   });
 
   group('ToolKitModule', () {
@@ -1446,9 +1588,22 @@ class _CountingEventHandler extends AgentOSEventHandler {
 class _AgentKitInterceptor extends Interceptor {
   int? historyPage;
   int? historyPageSize;
+  Map<String, dynamic>? historySummaryQuery;
+  Map<String, dynamic>? historyProcessQuery;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path == '/appkit/register') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, String>{'token': 'sk-demo'},
+        ),
+      );
+      return;
+    }
+
     final bearer = (options.headers[HttpHeaders.authorizationHeader] ?? '')
         .toString();
     if (!bearer.startsWith('Bearer ')) {
@@ -1517,6 +1672,69 @@ class _AgentKitInterceptor extends Interceptor {
               'type': 'text',
               'content': 'done',
               'createTime': DateTime.utc(2026, 7, 10).toIso8601String(),
+            },
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/agentkit/history/summary') {
+      historySummaryQuery = Map<String, dynamic>.from(options.queryParameters);
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'originalTaskId': 'root-task',
+              'sessionId': 'root-session',
+              'userMessage': <String, dynamic>{
+                'sessionId': 'root-session',
+                'originalTaskId': 'root-task',
+                'taskId': 'root-task',
+                'role': 'user',
+                'to': 'agent',
+                'type': 'text',
+                'content': 'hello',
+                'createTime': '2026-07-12T10:00:00.000Z',
+              },
+              'finalMessage': null,
+              'status': 'done',
+              'error': null,
+              'createdAt': '2026-07-12T10:00:00.000Z',
+              'completedAt': '2026-07-12T10:00:05.000Z',
+              'durationMs': 5000,
+              'usage': <String, dynamic>{
+                'promptTokens': 10,
+                'completionTokens': 2,
+                'totalTokens': 12,
+              },
+              'processMessageCount': 4,
+            },
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/agentkit/history/process') {
+      historyProcessQuery = Map<String, dynamic>.from(options.queryParameters);
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <Map<String, dynamic>>[
+            <String, dynamic>{
+              'sessionId': 'child-session',
+              'originalTaskId': 'root-task',
+              'parentTaskId': 'root-task',
+              'taskId': 'child-task',
+              'role': 'agent',
+              'to': 'user',
+              'type': 'reasoning',
+              'content': 'working',
+              'createTime': '2026-07-12T10:00:01.000Z',
             },
           ],
         ),

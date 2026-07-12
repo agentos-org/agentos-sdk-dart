@@ -172,6 +172,64 @@ class AgentKitClient {
         .toList();
   }
 
+  Future<List<HistoryTurnSummaryDto>> historySummary({
+    required String bearerToken,
+    required String sessionId,
+    int page = 1,
+    int pageSize = 30,
+  }) async {
+    _validateHistoryPagination(page: page, pageSize: pageSize);
+    final Response<dynamic> response = await _apiClient.dio.get(
+      '/agentkit/history/summary',
+      queryParameters: <String, dynamic>{
+        ...Session(sessionId: sessionId).toJson(),
+        'page': page,
+        'pageSize': pageSize,
+      },
+      options: _authOptions(bearerToken),
+    );
+    return _asJsonList(response.data)
+        .map(
+          (item) => HistoryTurnSummaryDto.fromJson(
+            Map<String, dynamic>.from(item as Map),
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<AgentMessage>> historyProcess({
+    required String bearerToken,
+    required String sessionId,
+    required String originalTaskId,
+    int page = 1,
+    int pageSize = 50,
+  }) async {
+    if (originalTaskId.trim().isEmpty) {
+      throw ArgumentError.value(
+        originalTaskId,
+        'originalTaskId',
+        'must not be empty',
+      );
+    }
+    _validateHistoryPagination(page: page, pageSize: pageSize);
+    final Response<dynamic> response = await _apiClient.dio.get(
+      '/agentkit/history/process',
+      queryParameters: <String, dynamic>{
+        ...Session(sessionId: sessionId).toJson(),
+        'originalTaskId': originalTaskId,
+        'page': page,
+        'pageSize': pageSize,
+      },
+      options: _authOptions(bearerToken),
+    );
+    return _asJsonList(response.data)
+        .map(
+          (item) =>
+              AgentMessage.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList();
+  }
+
   Future<Map<String, dynamic>> stop({
     required String bearerToken,
     required String sessionId,
@@ -263,6 +321,19 @@ class AgentKitClient {
       return decoded;
     }
     return const [];
+  }
+
+  void _validateHistoryPagination({required int page, required int pageSize}) {
+    if (page <= 0) {
+      throw ArgumentError.value(page, 'page', 'must be greater than 0');
+    }
+    if (pageSize < 1 || pageSize > 200) {
+      throw ArgumentError.value(
+        pageSize,
+        'pageSize',
+        'must be between 1 and 200',
+      );
+    }
   }
 
   Stream<AgentEvent> _parseSse(Stream<List<int>> source) {

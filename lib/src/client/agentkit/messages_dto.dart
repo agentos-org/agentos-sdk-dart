@@ -149,6 +149,47 @@ class TokenUsage {
   Map<String, dynamic> toJson() => _$TokenUsageToJson(this);
 }
 
+class HistoryTurnStatus {
+  static const String running = 'running';
+  static const String done = 'done';
+  static const String error = 'error';
+  static const String stopped = 'stopped';
+}
+
+@JsonSerializable(explicitToJson: true)
+class HistoryTurnSummaryDto {
+  final String originalTaskId;
+  final String sessionId;
+  final AgentMessage? userMessage;
+  final AgentMessage? finalMessage;
+  final String status;
+  final String? error;
+  final DateTime? createdAt;
+  final DateTime? completedAt;
+  final int? durationMs;
+  final TokenUsage? usage;
+  final int processMessageCount;
+
+  const HistoryTurnSummaryDto({
+    required this.originalTaskId,
+    required this.sessionId,
+    required this.userMessage,
+    required this.finalMessage,
+    required this.status,
+    required this.error,
+    required this.createdAt,
+    required this.completedAt,
+    required this.durationMs,
+    required this.usage,
+    required this.processMessageCount,
+  });
+
+  factory HistoryTurnSummaryDto.fromJson(Map<String, dynamic> json) =>
+      _$HistoryTurnSummaryDtoFromJson(json);
+
+  Map<String, dynamic> toJson() => _$HistoryTurnSummaryDtoToJson(this);
+}
+
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class UserTask {
   List<Content> content;

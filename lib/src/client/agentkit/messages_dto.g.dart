@@ -122,6 +122,48 @@ Map<String, dynamic> _$TokenUsageToJson(TokenUsage instance) =>
       'contextUsageRatio': ?instance.contextUsageRatio,
     };
 
+HistoryTurnSummaryDto _$HistoryTurnSummaryDtoFromJson(
+  Map<String, dynamic> json,
+) => HistoryTurnSummaryDto(
+  originalTaskId: json['originalTaskId'] as String,
+  sessionId: json['sessionId'] as String,
+  userMessage: json['userMessage'] == null
+      ? null
+      : AgentMessage.fromJson(json['userMessage'] as Map<String, dynamic>),
+  finalMessage: json['finalMessage'] == null
+      ? null
+      : AgentMessage.fromJson(json['finalMessage'] as Map<String, dynamic>),
+  status: json['status'] as String,
+  error: json['error'] as String?,
+  createdAt: json['createdAt'] == null
+      ? null
+      : DateTime.parse(json['createdAt'] as String),
+  completedAt: json['completedAt'] == null
+      ? null
+      : DateTime.parse(json['completedAt'] as String),
+  durationMs: (json['durationMs'] as num?)?.toInt(),
+  usage: json['usage'] == null
+      ? null
+      : TokenUsage.fromJson(json['usage'] as Map<String, dynamic>),
+  processMessageCount: (json['processMessageCount'] as num).toInt(),
+);
+
+Map<String, dynamic> _$HistoryTurnSummaryDtoToJson(
+  HistoryTurnSummaryDto instance,
+) => <String, dynamic>{
+  'originalTaskId': instance.originalTaskId,
+  'sessionId': instance.sessionId,
+  'userMessage': instance.userMessage?.toJson(),
+  'finalMessage': instance.finalMessage?.toJson(),
+  'status': instance.status,
+  'error': instance.error,
+  'createdAt': instance.createdAt?.toIso8601String(),
+  'completedAt': instance.completedAt?.toIso8601String(),
+  'durationMs': instance.durationMs,
+  'usage': instance.usage?.toJson(),
+  'processMessageCount': instance.processMessageCount,
+};
+
 UserTask _$UserTaskFromJson(Map<String, dynamic> json) => UserTask(
   content: (json['content'] as List<dynamic>)
       .map((e) => Content.fromJson(e as Map<String, dynamic>))

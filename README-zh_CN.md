@@ -22,7 +22,7 @@ CronKit、RagKit、ModelKit（chat / embedding / asr / tts）和 ToolKit 发现�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.5.0
+  agentos_sdk: ^0.5.1
 ```
 
 然后执行：

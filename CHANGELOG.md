@@ -1,3 +1,9 @@
+## 0.5.1
+
+- feat: add typed AgentKit task-turn history summaries and lazy process history APIs.
+- feat: expose history summary and process pagination through `AgentKitModule`.
+- fix: preserve child session IDs for AgentKit message, chunk, and function-call callbacks.
+
 ## 0.5.0
 
 - feat: add typed AgentKit history responses with optional paired pagination.

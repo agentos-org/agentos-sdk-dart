@@ -876,13 +876,16 @@ class AgentKitModule {
           final agentMessage = AgentMessage.fromJson(
             jsonDecode(event.data) as Map<String, dynamic>,
           );
-          await agentMessageHandler.onMessage(session.sessionId, agentMessage);
+          await agentMessageHandler.onMessage(
+            _eventSessionId(agentMessage.sessionId, session.sessionId),
+            agentMessage,
+          );
         } else if (event.agentEventType == AgentEventType.chunk) {
           final agentMessageChunk = AgentMessageChunk.fromJson(
             jsonDecode(event.data) as Map<String, dynamic>,
           );
           await agentMessageHandler.onChunk(
-            session.sessionId,
+            _eventSessionId(agentMessageChunk.sessionId, session.sessionId),
             agentMessageChunk,
           );
         } else if (event.agentEventType == AgentEventType.functionCall) {
@@ -927,6 +930,40 @@ class AgentKitModule {
       (bearerToken) => _client._agentKit.history(
         bearerToken: bearerToken,
         sessionId: sessionId,
+        page: page,
+        pageSize: pageSize,
+      ),
+    );
+  }
+
+  /// Retrieves task-turn summaries for a root session via AgentKit.
+  Future<List<HistoryTurnSummaryDto>> historySummary({
+    required String sessionId,
+    int page = 1,
+    int pageSize = 30,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.historySummary(
+        bearerToken: bearerToken,
+        sessionId: sessionId,
+        page: page,
+        pageSize: pageSize,
+      ),
+    );
+  }
+
+  /// Retrieves process messages for one task turn via AgentKit.
+  Future<List<AgentMessage>> historyProcess({
+    required String sessionId,
+    required String originalTaskId,
+    int page = 1,
+    int pageSize = 50,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._agentKit.historyProcess(
+        bearerToken: bearerToken,
+        sessionId: sessionId,
+        originalTaskId: originalTaskId,
         page: page,
         pageSize: pageSize,
       ),
@@ -1014,11 +1051,10 @@ class AgentKitModule {
 
     final functionCallMap = Map<String, dynamic>.from(functionCallJson);
     final functionCall = FunctionCall.fromJson(functionCallMap);
-    final payloadSessionId = payload['sessionId']?.toString();
-    final effectiveSessionId =
-        payloadSessionId != null && payloadSessionId.isNotEmpty
-        ? payloadSessionId
-        : session.sessionId;
+    final effectiveSessionId = _eventSessionId(
+      payload['sessionId']?.toString(),
+      session.sessionId,
+    );
     final callbackSession = Session(sessionId: effectiveSessionId);
 
     if (_isStreamFunctionCall(payload, functionCallMap)) {
@@ -1058,6 +1094,12 @@ class AgentKitModule {
   bool _readBoolFlag(Map<String, dynamic> json, String key) {
     final value = json[key];
     return value is bool && value;
+  }
+
+  String _eventSessionId(String? eventSessionId, String fallbackSessionId) {
+    return eventSessionId != null && eventSessionId.trim().isNotEmpty
+        ? eventSessionId
+        : fallbackSessionId;
   }
 }
 
