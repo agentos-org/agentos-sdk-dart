@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:agentos_sdk/agentos_sdk.dart';
 
 Future<void> main(List<String> args) async {
@@ -35,6 +38,28 @@ Future<void> main(List<String> args) async {
         '(root: ${message.originalTaskId}): ${message.content}',
       );
     }
+  }
+
+  if (args.length >= 2 && args.first == '--agent-chat') {
+    final handler = _DemoAgentMessageHandler();
+    await sdk.agentkit.chat(
+      Session(sessionId: args[1]),
+      UserTask(
+        content: <Content>[Content(type: 'text', message: userMessage)],
+        isChunk: true,
+      ),
+      handler,
+    );
+    print('Agent chat started. Press Enter to cancel.');
+    final shouldStop = await Future.any<bool>(<Future<bool>>[
+      handler.done.then((_) => false),
+      stdin.first.then((_) => true),
+    ]);
+    if (shouldStop) {
+      await sdk.agentkit.stop(sessionId: args[1]);
+    }
+    await sdk.dispose();
+    return;
   }
 
   sdk.agentos.connectionEvents.listen((event) {
@@ -94,5 +119,35 @@ class _DemoEventHandler extends AgentOSEventHandler {
   @override
   Future<void> onError(Exception error) async {
     print('Failed to subscribe: $error');
+  }
+}
+
+class _DemoAgentMessageHandler extends AgentMessageHandler {
+  final Completer<void> _done = Completer<void>();
+
+  Future<void> get done => _done.future;
+
+  @override
+  Future<void> onMessage(String sessionId, AgentMessage agentMessage) async {
+    print('[$sessionId] ${agentMessage.content}');
+  }
+
+  @override
+  Future<void> onChunk(
+    String sessionId,
+    AgentMessageChunk agentMessageChunk,
+  ) async {
+    stdout.write(agentMessageChunk.part);
+  }
+
+  @override
+  Future<void> onDone() async {
+    if (!_done.isCompleted) _done.complete();
+  }
+
+  @override
+  Future<void> onError(Exception error) async {
+    stderr.writeln('Agent chat failed: $error');
+    if (!_done.isCompleted) _done.complete();
   }
 }

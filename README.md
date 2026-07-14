@@ -23,7 +23,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.5.1
+  agentos_sdk: ^0.5.2
 ```
 
 Then run:
@@ -216,6 +216,8 @@ CronSpec(
 | `chat(Session session, UserTask userTask, AgentMessageHandler agentMessageHandler)` | `session`, `userTask`, `agentMessageHandler` | Starts a SessionAgent task and delivers SSE events to the handler callbacks. |
 | `chatSimple({required String sessionId, required UserTask userTask})` | `sessionId`, `userTask` | Executes a SimpleAgent request and returns a one-time response. |
 | `history({required String sessionId, int? page, int? pageSize})` | `sessionId`, `page`, `pageSize` | Retrieves typed message history. Supply positive, 1-based `page` and `pageSize` together for pagination, or omit both for the complete history. |
+| `historySummary({required String sessionId, int page = 1, int pageSize = 30})` | `sessionId`, `page`, `pageSize` | Retrieves summary-first task history. |
+| `historyProcess({required String sessionId, required String originalTaskId, int page = 1, int pageSize = 50})` | `sessionId`, `originalTaskId`, `page`, `pageSize` | Lazily retrieves process messages for one task turn. |
 | `stop({required String sessionId, String? taskId})` | `sessionId`, `taskId` | Stops a session or task. |
 | `clear({required String sessionId})` | `sessionId` | Clears session data. |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | Sends tool callback results. |
@@ -352,6 +354,29 @@ class MyHandler extends AgentMessageHandler {
   Future<void> onError(Exception error) async {}
 }
 ```
+
+`chat(...)` keeps the SSE subscription inside the SDK and exposes events only
+through `AgentMessageHandler`. Event callbacks are processed serially, so
+`onDone()` runs only after the final event callback completes.
+
+```dart
+await sdk.agentkit.chat(
+  Session(sessionId: sessionId),
+  userTask,
+  myHandler,
+);
+
+// Stops the remote task and closes active local chat streams for the session.
+await sdk.agentkit.stop(sessionId: sessionId);
+```
+
+`AgentOSSDK.dispose()` also closes every active AgentKit chat stream. The public
+API does not expose the underlying Dart stream subscription.
+
+- `CallbackOpenTool.timeout` is an optional positive timeout in seconds. The
+  gateway uses its compatibility default when the value is omitted or invalid.
+- `callback(...)` and `streamCallback(...)` may return `status: ignored` with
+  `reason: callback_expired` or `callback_completed` for late results.
 
 ## Token Handling
 

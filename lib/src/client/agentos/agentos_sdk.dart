@@ -326,6 +326,7 @@ class AgentOSSDK {
   Future<void> dispose() async {
     _isDisposed = true;
     _shouldMaintainAgentOsSubscription = false;
+    await agentkit._dispose();
     await _cancelAgentOsSubscription();
     _agentOsEventHandler = null;
     await _agentOsReconnectTask;
@@ -788,6 +789,8 @@ class AgentKitModule {
   AgentKitModule._(this._client);
 
   final AgentOSSDK _client;
+  final Map<String, Set<_ActiveAgentKitChat>> _activeChats =
+      <String, Set<_ActiveAgentKitChat>>{};
 
   /// Retrieves an agent by agentId.
   Future<Map<String, dynamic>> getAgent({required String agentId}) {
@@ -870,40 +873,92 @@ class AgentKitModule {
         userTask: userTask,
       ),
     );
-    stream.listen(
-      (event) async {
-        if (event.agentEventType == AgentEventType.message) {
-          final agentMessage = AgentMessage.fromJson(
-            jsonDecode(event.data) as Map<String, dynamic>,
-          );
-          await agentMessageHandler.onMessage(
-            _eventSessionId(agentMessage.sessionId, session.sessionId),
-            agentMessage,
-          );
-        } else if (event.agentEventType == AgentEventType.chunk) {
-          final agentMessageChunk = AgentMessageChunk.fromJson(
-            jsonDecode(event.data) as Map<String, dynamic>,
-          );
-          await agentMessageHandler.onChunk(
-            _eventSessionId(agentMessageChunk.sessionId, session.sessionId),
-            agentMessageChunk,
-          );
-        } else if (event.agentEventType == AgentEventType.functionCall) {
-          await _handleFunctionCallEvent(
-            session,
-            event.data,
-            agentMessageHandler,
-          );
-        }
-      },
-      onDone: agentMessageHandler.onDone,
-      onError: (error) {
-        final exception = error is Exception
-            ? error
-            : Exception(error?.toString() ?? 'Unknown error');
-        agentMessageHandler.onError(exception);
-      },
-    );
+    final activeChat = _ActiveAgentKitChat();
+    _activeChats
+        .putIfAbsent(session.sessionId, () => <_ActiveAgentKitChat>{})
+        .add(activeChat);
+    activeChat.subscription = stream
+        .asyncMap<void>((event) async {
+          await _dispatchChatEvent(session, event, agentMessageHandler);
+        })
+        .listen(
+          (_) {},
+          onDone: () {
+            _removeActiveChat(session.sessionId, activeChat);
+            unawaited(_notifyChatDone(agentMessageHandler));
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            _removeActiveChat(session.sessionId, activeChat);
+            unawaited(_notifyChatError(agentMessageHandler, error, stackTrace));
+          },
+          cancelOnError: true,
+        );
+  }
+
+  void _removeActiveChat(String sessionId, _ActiveAgentKitChat activeChat) {
+    final chats = _activeChats[sessionId];
+    if (chats == null) return;
+    chats.remove(activeChat);
+    if (chats.isEmpty) _activeChats.remove(sessionId);
+  }
+
+  Future<void> _cancelActiveChats(String sessionId) async {
+    final chats = _activeChats.remove(sessionId);
+    if (chats == null) return;
+    await Future.wait(chats.map((chat) => chat.subscription.cancel()));
+  }
+
+  Future<void> _dispose() async {
+    final chats = _activeChats.values.expand((value) => value).toList();
+    _activeChats.clear();
+    await Future.wait(chats.map((chat) => chat.subscription.cancel()));
+  }
+
+  Future<void> _dispatchChatEvent(
+    Session session,
+    AgentEvent event,
+    AgentMessageHandler agentMessageHandler,
+  ) async {
+    if (event.agentEventType == AgentEventType.message) {
+      final agentMessage = AgentMessage.fromJson(
+        jsonDecode(event.data) as Map<String, dynamic>,
+      );
+      await agentMessageHandler.onMessage(
+        _eventSessionId(agentMessage.sessionId, session.sessionId),
+        agentMessage,
+      );
+    } else if (event.agentEventType == AgentEventType.chunk) {
+      final agentMessageChunk = AgentMessageChunk.fromJson(
+        jsonDecode(event.data) as Map<String, dynamic>,
+      );
+      await agentMessageHandler.onChunk(
+        _eventSessionId(agentMessageChunk.sessionId, session.sessionId),
+        agentMessageChunk,
+      );
+    } else if (event.agentEventType == AgentEventType.functionCall) {
+      await _handleFunctionCallEvent(session, event.data, agentMessageHandler);
+    }
+  }
+
+  Future<void> _notifyChatDone(AgentMessageHandler handler) async {
+    try {
+      await handler.onDone();
+    } catch (error, stackTrace) {
+      await _notifyChatError(handler, error, stackTrace);
+    }
+  }
+
+  Future<void> _notifyChatError(
+    AgentMessageHandler handler,
+    Object error,
+    StackTrace stackTrace,
+  ) async {
+    final exception = error is Exception ? error : Exception(error.toString());
+    try {
+      await handler.onError(exception);
+    } catch (callbackError, callbackStackTrace) {
+      Zone.current.handleUncaughtError(callbackError, callbackStackTrace);
+    }
   }
 
   /// Sends a SimpleAgent request and returns the one-time response.
@@ -971,17 +1026,24 @@ class AgentKitModule {
   }
 
   /// Stops a session or task via AgentKit.
+  ///
+  /// A session-level stop also closes active local chat streams. A
+  /// task-specific stop leaves the session stream available for other tasks.
   Future<Map<String, dynamic>> stop({
     required String sessionId,
     String? taskId,
-  }) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._agentKit.stop(
-        bearerToken: bearerToken,
-        sessionId: sessionId,
-        taskId: taskId,
-      ),
-    );
+  }) async {
+    try {
+      return await _client._withAppAuthRetry(
+        (bearerToken) => _client._agentKit.stop(
+          bearerToken: bearerToken,
+          sessionId: sessionId,
+          taskId: taskId,
+        ),
+      );
+    } finally {
+      if (taskId == null) await _cancelActiveChats(sessionId);
+    }
   }
 
   /// Clears session data via AgentKit.
@@ -1101,6 +1163,10 @@ class AgentKitModule {
         ? eventSessionId
         : fallbackSessionId;
   }
+}
+
+class _ActiveAgentKitChat {
+  late final StreamSubscription<void> subscription;
 }
 
 /// Entry point for the task-oriented ModelKit API (chat / embedding / asr / tts).

@@ -707,6 +707,121 @@ void main() {
         expect(interceptor.historyProcessQuery?['pageSize'], 50);
       },
     );
+
+    test('stop closes the active underlying SSE stream', () async {
+      final streamCancelled = Completer<void>();
+      final source = StreamController<Uint8List>(
+        onCancel: () {
+          if (!streamCancelled.isCompleted) streamCancelled.complete();
+        },
+      );
+      final sdk = _buildAgentKitLifecycleSdk(source.stream);
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+
+      await sdk.agentkit.chat(
+        Session(sessionId: 'root-session'),
+        UserTask(
+          content: <Content>[Content(type: 'text', message: 'hello')],
+        ),
+        _LifecycleAgentMessageHandler(),
+      );
+      final result = await sdk.agentkit.stop(sessionId: 'root-session');
+
+      await streamCancelled.future.timeout(const Duration(seconds: 2));
+      expect(result['status'], 'ok');
+    });
+
+    test('dispose closes all active AgentKit SSE streams', () async {
+      final streamCancelled = Completer<void>();
+      final source = StreamController<Uint8List>(
+        onCancel: () {
+          if (!streamCancelled.isCompleted) streamCancelled.complete();
+        },
+      );
+      final sdk = _buildAgentKitLifecycleSdk(source.stream);
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+      await sdk.agentkit.chat(
+        Session(sessionId: 'root-session'),
+        UserTask(
+          content: <Content>[Content(type: 'text', message: 'hello')],
+        ),
+        _LifecycleAgentMessageHandler(),
+      );
+
+      await sdk.dispose();
+
+      await streamCancelled.future.timeout(const Duration(seconds: 2));
+    });
+
+    test('task-specific stop keeps the session SSE stream active', () async {
+      final streamCancelled = Completer<void>();
+      final source = StreamController<Uint8List>(
+        onCancel: () {
+          if (!streamCancelled.isCompleted) streamCancelled.complete();
+        },
+      );
+      final sdk = _buildAgentKitLifecycleSdk(source.stream);
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+      await sdk.agentkit.chat(
+        Session(sessionId: 'root-session'),
+        UserTask(
+          content: <Content>[Content(type: 'text', message: 'hello')],
+        ),
+        _LifecycleAgentMessageHandler(),
+      );
+
+      await sdk.agentkit.stop(sessionId: 'root-session', taskId: 'child-task');
+
+      expect(streamCancelled.isCompleted, isFalse);
+      await sdk.dispose();
+      await streamCancelled.future.timeout(const Duration(seconds: 2));
+    });
+
+    test('chat awaits event handlers before notifying done', () async {
+      final source = Stream<Uint8List>.value(
+        Uint8List.fromList(utf8.encode(_agentKitMessageSse)),
+      );
+      final sdk = _buildAgentKitLifecycleSdk(source);
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+      final handler = _OrderedAgentMessageHandler();
+
+      await sdk.agentkit.chat(
+        Session(sessionId: 'root-session'),
+        UserTask(
+          content: <Content>[Content(type: 'text', message: 'hello')],
+        ),
+        handler,
+      );
+
+      await handler.messageStarted.future.timeout(const Duration(seconds: 2));
+      expect(handler.events, <String>['message:start']);
+      handler.releaseMessage.complete();
+      await handler.done.future.timeout(const Duration(seconds: 2));
+      expect(handler.events, <String>['message:start', 'message:end', 'done']);
+    });
+
+    test('chat routes asynchronous handler failures to onError', () async {
+      final source = Stream<Uint8List>.value(
+        Uint8List.fromList(utf8.encode(_agentKitMessageSse)),
+      );
+      final sdk = _buildAgentKitLifecycleSdk(source);
+      await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+      final handler = _ThrowingAgentMessageHandler();
+
+      await sdk.agentkit.chat(
+        Session(sessionId: 'root-session'),
+        UserTask(
+          content: <Content>[Content(type: 'text', message: 'hello')],
+        ),
+        handler,
+      );
+
+      final error = await handler.error.future.timeout(
+        const Duration(seconds: 2),
+      );
+      expect(error.toString(), contains('message handler failed'));
+      expect(handler.doneCalled, isFalse);
+    });
   });
 
   group('ToolKitModule', () {
@@ -1583,6 +1698,135 @@ class _CountingEventHandler extends AgentOSEventHandler {
 
   @override
   Future<void> onError(Exception error) async {}
+}
+
+const String _agentKitMessageSse =
+    'event: message\n'
+    'data: {"sessionId":"child-session","originalTaskId":"root-task","taskId":"child-task","role":"agent","to":"user","type":"text","content":"done","createTime":"2026-07-14T10:00:00.000Z"}\n'
+    '\n';
+
+AgentOSSDK _buildAgentKitLifecycleSdk(Stream<Uint8List> chatStream) {
+  final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+    ..interceptors.add(_AgentKitLifecycleInterceptor(chatStream));
+  return AgentOSSDK(apiClient: ApiClient(dio: dio));
+}
+
+class _AgentKitLifecycleInterceptor extends Interceptor {
+  _AgentKitLifecycleInterceptor(this.chatStream);
+
+  final Stream<Uint8List> chatStream;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path == '/appkit/register') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, String>{'token': 'sk-demo'},
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/agentkit/chat') {
+      handler.resolve(
+        Response<ResponseBody>(
+          requestOptions: options,
+          statusCode: 200,
+          data: ResponseBody(
+            chatStream,
+            200,
+            headers: <String, List<String>>{
+              Headers.contentTypeHeader: <String>['text/event-stream'],
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (options.path == '/agentkit/stop') {
+      handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: <String, String>{'status': 'ok'},
+        ),
+      );
+      return;
+    }
+
+    handler.reject(
+      DioException(
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 404,
+          data: 'Unhandled path ${options.path}',
+        ),
+        type: DioExceptionType.badResponse,
+      ),
+    );
+  }
+}
+
+class _LifecycleAgentMessageHandler extends AgentMessageHandler {
+  @override
+  Future<void> onMessage(String sessionId, AgentMessage agentMessage) async {}
+
+  @override
+  Future<void> onChunk(
+    String sessionId,
+    AgentMessageChunk agentMessageChunk,
+  ) async {}
+
+  @override
+  Future<void> onDone() async {}
+
+  @override
+  Future<void> onError(Exception error) async {}
+}
+
+class _OrderedAgentMessageHandler extends _LifecycleAgentMessageHandler {
+  final List<String> events = <String>[];
+  final Completer<void> messageStarted = Completer<void>();
+  final Completer<void> releaseMessage = Completer<void>();
+  final Completer<void> done = Completer<void>();
+
+  @override
+  Future<void> onMessage(String sessionId, AgentMessage agentMessage) async {
+    events.add('message:start');
+    messageStarted.complete();
+    await releaseMessage.future;
+    events.add('message:end');
+  }
+
+  @override
+  Future<void> onDone() async {
+    events.add('done');
+    done.complete();
+  }
+}
+
+class _ThrowingAgentMessageHandler extends _LifecycleAgentMessageHandler {
+  final Completer<Exception> error = Completer<Exception>();
+  bool doneCalled = false;
+
+  @override
+  Future<void> onMessage(String sessionId, AgentMessage agentMessage) async {
+    throw StateError('message handler failed');
+  }
+
+  @override
+  Future<void> onDone() async {
+    doneCalled = true;
+  }
+
+  @override
+  Future<void> onError(Exception error) async {
+    if (!this.error.isCompleted) this.error.complete(error);
+  }
 }
 
 class _AgentKitInterceptor extends Interceptor {

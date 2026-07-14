@@ -337,37 +337,46 @@ class AgentKitClient {
   }
 
   Stream<AgentEvent> _parseSse(Stream<List<int>> source) {
-    final controller = StreamController<AgentEvent>();
+    late final StreamController<AgentEvent> controller;
+    StreamSubscription<String>? sourceSubscription;
     String? currentEvent;
     String? currentData;
 
-    source
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen(
-          (line) {
-            if (line.startsWith('event:')) {
-              currentEvent = line.substring(6).trim();
-              return;
-            }
-            if (line.startsWith('data:')) {
-              currentData = line.substring(5).trim();
-              return;
-            }
-            if (line.isEmpty) {
-              if (currentEvent != null && currentData != null) {
-                final eventType = _normalizeAgentEventType(currentEvent!);
-                controller.add(
-                  AgentEvent(agentEventType: eventType, data: currentData!),
-                );
-              }
-              currentEvent = null;
-              currentData = null;
-            }
-          },
-          onError: controller.addError,
-          onDone: controller.close,
-        );
+    controller = StreamController<AgentEvent>(
+      sync: true,
+      onListen: () {
+        sourceSubscription = source
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(
+              (line) {
+                if (line.startsWith('event:')) {
+                  currentEvent = line.substring(6).trim();
+                  return;
+                }
+                if (line.startsWith('data:')) {
+                  currentData = line.substring(5).trim();
+                  return;
+                }
+                if (line.isEmpty) {
+                  if (currentEvent != null && currentData != null) {
+                    final eventType = _normalizeAgentEventType(currentEvent!);
+                    controller.add(
+                      AgentEvent(agentEventType: eventType, data: currentData!),
+                    );
+                  }
+                  currentEvent = null;
+                  currentData = null;
+                }
+              },
+              onError: controller.addError,
+              onDone: controller.close,
+            );
+      },
+      onPause: () => sourceSubscription?.pause(),
+      onResume: () => sourceSubscription?.resume(),
+      onCancel: () => sourceSubscription?.cancel(),
+    );
 
     return controller.stream;
   }

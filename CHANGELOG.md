@@ -1,3 +1,8 @@
+## 0.5.2
+
+- fix: internally manage AgentKit chat subscriptions so `stop()` and `dispose()` close the HTTP stream without exposing the underlying stream API.
+- fix: serialize asynchronous AgentKit event handlers before terminal callbacks.
+
 ## 0.5.1
 
 - feat: add typed AgentKit task-turn history summaries and lazy process history APIs.

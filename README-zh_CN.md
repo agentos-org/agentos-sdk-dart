@@ -22,7 +22,7 @@ CronKit、RagKit、ModelKit（chat / embedding / asr / tts）和 ToolKit 发现�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.5.1
+  agentos_sdk: ^0.5.2
 ```
 
 然后执行：
@@ -215,6 +215,8 @@ CronSpec(
 | `chat(Session session, UserTask userTask, AgentMessageHandler agentMessageHandler)` | `session`, `userTask`, `agentMessageHandler` | 启动 SessionAgent 任务，并通过回调处理 SSE 事件。 |
 | `chatSimple({required String sessionId, required UserTask userTask})` | `sessionId`, `userTask` | 执行 SimpleAgent 请求并返回一次性响应。 |
 | `history({required String sessionId, int? page, int? pageSize})` | `sessionId`、`page`、`pageSize` | 获取强类型会话历史。分页时必须成对传入正整数 `page` 和 `pageSize`，页码从 1 开始；两者都省略时获取完整历史。 |
+| `historySummary({required String sessionId, int page = 1, int pageSize = 30})` | `sessionId`、`page`、`pageSize` | 按任务摘要优先获取历史。 |
+| `historyProcess({required String sessionId, required String originalTaskId, int page = 1, int pageSize = 50})` | `sessionId`、`originalTaskId`、`page`、`pageSize` | 懒加载指定任务轮次的过程消息。 |
 | `stop({required String sessionId, String? taskId})` | `sessionId`, `taskId` | 停止会话或任务。 |
 | `clear({required String sessionId})` | `sessionId` | 清除会话数据。 |
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | 发送工具回调结果。 |
@@ -351,6 +353,28 @@ class MyHandler extends AgentMessageHandler {
   Future<void> onError(Exception error) async {}
 }
 ```
+
+`chat(...)` 将 SSE 订阅保留在 SDK 内部，只通过 `AgentMessageHandler`
+向外提供事件。SDK 会串行处理事件回调，因此只有最后一个事件回调完成后
+才会调用 `onDone()`。
+
+```dart
+await sdk.agentkit.chat(
+  Session(sessionId: sessionId),
+  userTask,
+  myHandler,
+);
+
+// 停止远端任务，并关闭该 session 的本地活跃聊天流。
+await sdk.agentkit.stop(sessionId: sessionId);
+```
+
+`AgentOSSDK.dispose()` 也会关闭所有活跃的 AgentKit 聊天流。公开 API
+不会暴露底层 Dart stream subscription。
+
+- `CallbackOpenTool.timeout` 是可选的正整数秒数；省略或值非法时，网关使用兼容默认值。
+- 迟到的结果可能使 `callback(...)` 或 `streamCallback(...)` 返回
+  `status: ignored`，原因为 `callback_expired` 或 `callback_completed`。
 
 ## Token 管理
 
