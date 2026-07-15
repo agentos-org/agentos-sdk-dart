@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:sse_client_dart/sse_client_dart.dart';
 
 import '../../utils/api_client.dart';
 import 'agents_dto.dart';
@@ -337,48 +338,14 @@ class AgentKitClient {
   }
 
   Stream<AgentEvent> _parseSse(Stream<List<int>> source) {
-    late final StreamController<AgentEvent> controller;
-    StreamSubscription<String>? sourceSubscription;
-    String? currentEvent;
-    String? currentData;
-
-    controller = StreamController<AgentEvent>(
-      sync: true,
-      onListen: () {
-        sourceSubscription = source
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())
-            .listen(
-              (line) {
-                if (line.startsWith('event:')) {
-                  currentEvent = line.substring(6).trim();
-                  return;
-                }
-                if (line.startsWith('data:')) {
-                  currentData = line.substring(5).trim();
-                  return;
-                }
-                if (line.isEmpty) {
-                  if (currentEvent != null && currentData != null) {
-                    final eventType = _normalizeAgentEventType(currentEvent!);
-                    controller.add(
-                      AgentEvent(agentEventType: eventType, data: currentData!),
-                    );
-                  }
-                  currentEvent = null;
-                  currentData = null;
-                }
-              },
-              onError: controller.addError,
-              onDone: controller.close,
-            );
-      },
-      onPause: () => sourceSubscription?.pause(),
-      onResume: () => sourceSubscription?.resume(),
-      onCancel: () => sourceSubscription?.cancel(),
-    );
-
-    return controller.stream;
+    return source.transform(const EventSourceDecoder()).map((event) {
+      return AgentEvent(
+        agentEventType: _normalizeAgentEventType(
+          event.event ?? AgentEventType.message,
+        ),
+        data: event.data ?? '',
+      );
+    });
   }
 
   String _normalizeAgentEventType(String eventType) {
