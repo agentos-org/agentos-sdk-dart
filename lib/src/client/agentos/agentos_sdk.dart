@@ -55,6 +55,9 @@ class AgentOSSDK {
       <String, _AppAuthCacheKey>{};
   final Map<_AppAuthCacheKey, Future<String>> _refreshingTokens =
       <_AppAuthCacheKey, Future<String>>{};
+  final Map<_AppAuthCacheKey, List<OpenToolServerDeclaration>>
+  _appOpenToolDeclarations =
+      <_AppAuthCacheKey, List<OpenToolServerDeclaration>>{};
   final StreamController<AgentOSSubscribeConnectionEvent>
   _agentOsConnectionEvents =
       StreamController<AgentOSSubscribeConnectionEvent>.broadcast();
@@ -209,6 +212,9 @@ class AgentOSSDK {
       final info = await _appKit.registerBundle(
         bundleId: key.bundleId,
         appGroupId: key.appGroupId,
+        opentoolServers:
+            _appOpenToolDeclarations[key] ??
+            const <OpenToolServerDeclaration>[],
       );
       _cacheAppToken(key, info.token, activate: false);
       return info.token;
@@ -349,15 +355,22 @@ class AgentOSModule {
   Future<Readiness> getReady() => _client._systemKit.getReady();
 
   /// Registers an app bundle and stores the returned bearer token internally.
+  ///
+  /// [opentoolServers] declares native OpenTool dependencies. The returned
+  /// registrations report `running`, `starting`, or `notFound`; asynchronous
+  /// provisioning results are delivered to [AgentOSEventHandler.onAppEvent].
   Future<AccessToken> registerBundle({
     required String bundleId,
     String? appGroupId,
+    List<OpenToolServerDeclaration> opentoolServers = const [],
   }) async {
     final key = _AppAuthCacheKey(bundleId: bundleId, appGroupId: appGroupId);
     final info = await _client._appKit.registerBundle(
       bundleId: bundleId,
       appGroupId: appGroupId,
+      opentoolServers: opentoolServers,
     );
+    _client._appOpenToolDeclarations[key] = List.unmodifiable(opentoolServers);
     _client._cacheAppToken(key, info.token, activate: true);
     return info;
   }
@@ -410,9 +423,9 @@ class AgentOSModule {
             final payload = _client._asJsonMap(event.data);
             final error = AppKitError.fromJson(payload);
             await currentHandler.onError(Exception(error.error));
-          } else if (event.agentosEventType == AgentOSEventType.callApp) {
+          } else if (event.agentosEventType == AgentOSEventType.appEvent) {
             final payload = _client._asJsonMap(event.data);
-            await currentHandler.onCallApp(Call.fromJson(payload));
+            await currentHandler.onAppEvent(AppEvent.fromJson(payload));
           } else {
             throw Exception('Unknown AgentOS event: ${event.agentosEventType}');
           }

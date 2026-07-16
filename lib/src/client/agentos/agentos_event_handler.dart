@@ -5,7 +5,9 @@ import '../appkit/dto.dart';
 abstract class AgentOSEventHandler {
   Future<void> onWelcome(Welcome welcome);
 
-  Future<void> onCallApp(Call call) async {}
+  /// Handles generic AppKit business events such as OpenTool provisioning
+  /// results. Existing handlers may ignore these events.
+  Future<void> onAppEvent(AppEvent event) async {}
 
   Future<void> onDone();
 

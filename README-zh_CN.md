@@ -22,7 +22,7 @@ CronKit、RagKit、ModelKit（chat / embedding / asr / tts）和 ToolKit 发现�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.5.2
+  agentos_sdk: ^0.6.0
 ```
 
 然后执行：
@@ -51,6 +51,12 @@ Future<void> main() async {
   final registration = await sdk.agentos.registerBundle(
     bundleId: 'com.demo.app',
     appGroupId: 'com.demo.group',
+    opentoolServers: const <OpenToolServerDeclaration>[
+      OpenToolServerDeclaration(
+        ref: 'websearch',
+        name: 'opentool-server-websearch',
+      ),
+    ],
   );
   print('App token: ${registration.token}');
 
@@ -65,8 +71,16 @@ class _DemoEventHandler extends AgentOSEventHandler {
   }
 
   @override
-  Future<void> onCallApp(Call call) async {
-    print('CallApp bundleId: ${call.bundleId}');
+  Future<void> onAppEvent(AppEvent event) async {
+    final success = event.openToolProvisionSuccess;
+    if (success != null) {
+      print('OpenTool ${success.ref} 已就绪：${success.id}');
+      return;
+    }
+    final failure = event.openToolProvisionFailure;
+    if (failure != null) {
+      print('OpenTool ${failure.ref} 启动失败：${failure.error.message}');
+    }
   }
 
   @override
@@ -167,7 +181,7 @@ AgentOSSDK({
 | `getVersion()` | 无 | 获取 AgentOS 服务版本。 |
 | `getRoot()` | 无 | 获取 AgentOS 网关元信息。 |
 | `getReady()` | 无 | 获取 AgentOS 就绪状态。 |
-| `registerBundle({required String bundleId, String? appGroupId})` | `bundleId`, `appGroupId` | 注册 app bundle，在内部保存 bearer token，并返回 token 元信息。 |
+| `registerBundle({required String bundleId, String? appGroupId, List<OpenToolServerDeclaration> opentoolServers = const []})` | `bundleId`, `appGroupId`, `opentoolServers` | 注册 app bundle、声明原生 OpenTool server 依赖，在内部保存 bearer token，并返回注册状态。 |
 | `subscribe(AgentOSEventHandler handler)` | `handler` | 使用 handler 订阅 AppKit SSE 事件。 |
 
 ### CronKitModule（`sdk.cronkit`）
@@ -270,7 +284,7 @@ CronSpec(
 | 方法 | 参数 | 说明 |
 | --- | --- | --- |
 | `onWelcome(Welcome welcome)` | `welcome` | 接收 `welcome` 事件。 |
-| `onCallApp(Call call)` | `call` | 接收 `callApp` 事件。 |
+| `onAppEvent(AppEvent event)` | `event` | 接收 AppKit 业务事件，包括异步 OpenTool 拉起成功和失败结果。 |
 | `onDone()` | 无 | SSE 流结束时触发。 |
 | `onError(Exception error)` | `error` | SSE 流异常时触发。 |
 

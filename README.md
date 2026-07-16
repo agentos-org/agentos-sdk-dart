@@ -23,7 +23,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.5.2
+  agentos_sdk: ^0.6.0
 ```
 
 Then run:
@@ -52,6 +52,12 @@ Future<void> main() async {
   final registration = await sdk.agentos.registerBundle(
     bundleId: 'com.demo.app',
     appGroupId: 'com.demo.group',
+    opentoolServers: const <OpenToolServerDeclaration>[
+      OpenToolServerDeclaration(
+        ref: 'websearch',
+        name: 'opentool-server-websearch',
+      ),
+    ],
   );
   print('App token: ${registration.token}');
 
@@ -66,8 +72,16 @@ class _DemoEventHandler extends AgentOSEventHandler {
   }
 
   @override
-  Future<void> onCallApp(Call call) async {
-    print('CallApp bundleId: ${call.bundleId}');
+  Future<void> onAppEvent(AppEvent event) async {
+    final success = event.openToolProvisionSuccess;
+    if (success != null) {
+      print('OpenTool ${success.ref} is ready: ${success.id}');
+      return;
+    }
+    final failure = event.openToolProvisionFailure;
+    if (failure != null) {
+      print('OpenTool ${failure.ref} failed: ${failure.error.message}');
+    }
   }
 
   @override
@@ -168,7 +182,7 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `getVersion()` | none | Fetches AgentOS service version. |
 | `getRoot()` | none | Fetches AgentOS gateway metadata. |
 | `getReady()` | none | Fetches AgentOS readiness status. |
-| `registerBundle({required String bundleId, String? appGroupId})` | `bundleId`, `appGroupId` | Registers an app bundle, stores the bearer token internally, and returns token metadata. |
+| `registerBundle({required String bundleId, String? appGroupId, List<OpenToolServerDeclaration> opentoolServers = const []})` | `bundleId`, `appGroupId`, `opentoolServers` | Registers an app bundle, declares native OpenTool server dependencies, stores the bearer token internally, and returns registration statuses. |
 | `subscribe(AgentOSEventHandler handler)` | `handler` | Subscribes to AppKit SSE events using a handler implementation. |
 
 ### CronKitModule (`sdk.cronkit`)
@@ -271,7 +285,7 @@ CronSpec(
 | Method | Parameters | Description |
 | --- | --- | --- |
 | `onWelcome(Welcome welcome)` | `welcome` | Receives `welcome` events. |
-| `onCallApp(Call call)` | `call` | Receives `callApp` events. |
+| `onAppEvent(AppEvent event)` | `event` | Receives AppKit business events, including asynchronous OpenTool provisioning success and failure results. |
 | `onDone()` | none | Called when the SSE stream ends. |
 | `onError(Exception error)` | `error` | Called when the SSE stream errors. |
 

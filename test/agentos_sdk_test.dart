@@ -14,6 +14,56 @@ import 'package:test/test.dart';
 
 void main() {
   group('DTO', () {
+    test('parses all OpenTool registration response statuses', () {
+      final registration = AccessToken.fromJson(<String, dynamic>{
+        'token': 'sk-demo',
+        'bundleId': 'com.demo.app',
+        'appGroupId': 'com.demo.app',
+        'opentoolServers': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'ref': 'running-tool',
+            'server': <String, dynamic>{
+              'repo': 'native',
+              'name': 'opentool-server-running',
+              'tag': '1.0.0',
+            },
+            'status': 'running',
+            'id': 'tool-1',
+          },
+          <String, dynamic>{
+            'ref': 'starting-tool',
+            'server': <String, dynamic>{
+              'repo': 'native',
+              'name': 'opentool-server-starting',
+              'tag': '1.1.0',
+            },
+            'status': 'starting',
+          },
+          <String, dynamic>{
+            'ref': 'missing-tool',
+            'name': 'opentool-server-missing',
+            'status': 'notFound',
+          },
+        ],
+      });
+
+      expect(
+        registration.opentoolServers.map((server) => server.status),
+        equals(<String>[
+          OpenToolRegistrationStatus.running,
+          OpenToolRegistrationStatus.starting,
+          OpenToolRegistrationStatus.notFound,
+        ]),
+      );
+      expect(registration.opentoolServers[0].id, equals('tool-1'));
+      expect(registration.opentoolServers[1].id, isNull);
+      expect(
+        registration.opentoolServers[2].name,
+        equals('opentool-server-missing'),
+      );
+      expect(registration.opentoolServers[2].server, isNull);
+    });
+
     test('parses and serializes token usage contextUsageRatio', () {
       final usage = TokenUsage.fromJson(<String, dynamic>{
         'promptTokens': 10,
@@ -229,6 +279,57 @@ void main() {
   });
 
   group('AgentOSSDK subscription lifecycle', () {
+    test(
+      'dispatches OpenTool provisioning results as typed app events',
+      () async {
+        final interceptor = _AppKitInterceptor();
+        final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
+          ..interceptors.add(interceptor);
+        final sdk = AgentOSSDK(apiClient: ApiClient(dio: dio));
+        final handler = _AppEventRecordingHandler();
+
+        await sdk.agentos.registerBundle(
+          bundleId: 'com.demo.app',
+          opentoolServers: const <OpenToolServerDeclaration>[
+            OpenToolServerDeclaration(
+              ref: 'websearch',
+              name: 'opentool-server-websearch',
+            ),
+          ],
+        );
+        await sdk.agentos.subscribe(
+          handler,
+          options: const AgentOSSubscribeOptions(autoReconnect: false),
+        );
+
+        await handler.firstTwoAppEvents.future.timeout(
+          const Duration(seconds: 2),
+        );
+        final successEvent = handler.events.singleWhere(
+          (event) => event.type == AppEventType.toolkitProvisionSucceeded,
+        );
+        final success = successEvent.openToolProvisionSuccess;
+        expect(success, isNotNull);
+        expect(success!.ref, equals('websearch'));
+        expect(success.status, equals(OpenToolRegistrationStatus.running));
+        expect(success.server.tag, equals('1.2.0'));
+        expect(success.id, equals('tool-websearch'));
+
+        final failureEvent = handler.events.singleWhere(
+          (event) => event.type == AppEventType.toolkitProvisionFailed,
+        );
+        final failure = failureEvent.openToolProvisionFailure;
+        expect(failure, isNotNull);
+        expect(failure!.ref, equals('websearch'));
+        expect(failure.status, equals('failed'));
+        expect(failure.server?.tag, equals('1.2.0'));
+        expect(failure.error.code, equals('startFailed'));
+        expect(failure.error.message, equals('process exited'));
+
+        await sdk.dispose();
+      },
+    );
+
     test('dispose stops receiving subsequent events', () async {
       final interceptor = _DelayedAppKitInterceptor();
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
@@ -244,7 +345,7 @@ void main() {
 
       await Future<void>.delayed(const Duration(milliseconds: 200));
       expect(handler.welcomeCount, equals(1));
-      expect(handler.callAppCount, equals(0));
+      expect(handler.appEventCount, equals(0));
     });
 
     test('emits connected after subscribe is established', () async {
@@ -913,12 +1014,32 @@ void main() {
       final token = await client.registerBundle(
         bundleId: 'com.demo.app',
         appGroupId: 'com.demo.group',
+        opentoolServers: const <OpenToolServerDeclaration>[
+          OpenToolServerDeclaration(
+            ref: 'websearch',
+            name: 'opentool-server-websearch',
+          ),
+        ],
       );
       expect(token.token, equals('sk-demo'));
       expect(token.bundleId, equals('com.demo.app'));
       expect(token.appGroupId, equals('com.demo.group'));
       expect(interceptor.lastBundleId, equals('com.demo.app'));
       expect(interceptor.lastAppGroupId, equals('com.demo.group'));
+      expect(
+        interceptor.lastOpenToolServers,
+        equals(<Map<String, dynamic>>[
+          <String, dynamic>{
+            'ref': 'websearch',
+            'name': 'opentool-server-websearch',
+          },
+        ]),
+      );
+      expect(token.opentoolServers.single.ref, equals('websearch'));
+      expect(
+        token.opentoolServers.single.status,
+        equals(OpenToolRegistrationStatus.starting),
+      );
 
       final events = await (await client.subscribe(
         bearerToken: token.token,
@@ -927,9 +1048,16 @@ void main() {
       expect(events, isNotEmpty);
       expect(
         events.map((e) => e.agentosEventType),
-        containsAll(<String>['welcome', 'callApp']),
+        containsAll(<String>['welcome', 'appEvent']),
       );
       expect(events.first.data, contains('bundleId'));
+      final appEvents = events
+          .where((event) => event.agentosEventType == AgentOSEventType.appEvent)
+          .toList();
+      expect(
+        appEvents.map((event) => event.id),
+        equals(<String>['evt-provision-succeeded', 'evt-provision-failed']),
+      );
     });
   });
 
@@ -1064,6 +1192,12 @@ void main() {
       await sdk.agentos.registerBundle(
         bundleId: 'com.demo.app',
         appGroupId: 'group-a',
+        opentoolServers: const <OpenToolServerDeclaration>[
+          OpenToolServerDeclaration(
+            ref: 'websearch',
+            name: 'opentool-server-websearch',
+          ),
+        ],
       );
 
       final session = await sdk.agentkit.initSession();
@@ -1076,6 +1210,23 @@ void main() {
       expect(
         interceptor.tokensUsedFor('/agentkit/initSession'),
         equals(<String>['token-group-a-v1', 'token-group-a-v2']),
+      );
+      expect(
+        interceptor.openToolRequestsFor('com.demo.app', 'group-a'),
+        equals(<List<Map<String, dynamic>>>[
+          <Map<String, dynamic>>[
+            <String, dynamic>{
+              'ref': 'websearch',
+              'name': 'opentool-server-websearch',
+            },
+          ],
+          <Map<String, dynamic>>[
+            <String, dynamic>{
+              'ref': 'websearch',
+              'name': 'opentool-server-websearch',
+            },
+          ],
+        ]),
       );
     });
 
@@ -1668,8 +1819,8 @@ class _DelayedAppKitInterceptor extends Interceptor {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     yield Uint8List.fromList(
       utf8.encode(
-        'event: callApp\n'
-        'data: {"bundleId":"com.demo.app","contentList":[{"type":"text","message":"ping"}]}\n\n',
+        'event: appEvent\n'
+        'data: {"version":1,"id":"evt-late","type":"app.command.requested","source":"appkit","time":"2026-07-15T10:30:00.000Z","subject":"demo","data":{}}\n\n',
       ),
     );
   }
@@ -1677,7 +1828,7 @@ class _DelayedAppKitInterceptor extends Interceptor {
 
 class _CountingEventHandler extends AgentOSEventHandler {
   int welcomeCount = 0;
-  int callAppCount = 0;
+  int appEventCount = 0;
   final Completer<void> firstWelcome = Completer<void>();
 
   @override
@@ -1689,8 +1840,8 @@ class _CountingEventHandler extends AgentOSEventHandler {
   }
 
   @override
-  Future<void> onCallApp(Call call) async {
-    callAppCount += 1;
+  Future<void> onAppEvent(AppEvent event) async {
+    appEventCount += 1;
   }
 
   @override
@@ -1698,6 +1849,32 @@ class _CountingEventHandler extends AgentOSEventHandler {
 
   @override
   Future<void> onError(Exception error) async {}
+}
+
+class _AppEventRecordingHandler extends AgentOSEventHandler {
+  final List<AppEvent> events = <AppEvent>[];
+  final Completer<void> firstTwoAppEvents = Completer<void>();
+
+  @override
+  Future<void> onWelcome(Welcome welcome) async {}
+
+  @override
+  Future<void> onAppEvent(AppEvent event) async {
+    events.add(event);
+    if (events.length >= 2 && !firstTwoAppEvents.isCompleted) {
+      firstTwoAppEvents.complete();
+    }
+  }
+
+  @override
+  Future<void> onDone() async {}
+
+  @override
+  Future<void> onError(Exception error) async {
+    if (!firstTwoAppEvents.isCompleted) {
+      firstTwoAppEvents.completeError(error);
+    }
+  }
 }
 
 const String _agentKitMessageSse =
@@ -2029,6 +2206,7 @@ class _AgentKitInterceptor extends Interceptor {
 class _AppKitInterceptor extends Interceptor {
   String? lastBundleId;
   String? lastAppGroupId;
+  List<Map<String, dynamic>> lastOpenToolServers = <Map<String, dynamic>>[];
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -2036,14 +2214,30 @@ class _AppKitInterceptor extends Interceptor {
       final payload = options.data as Map<String, dynamic>;
       lastBundleId = payload['bundleId']?.toString();
       lastAppGroupId = payload['appGroupId']?.toString();
+      lastOpenToolServers =
+          (payload['opentoolServers'] as List<dynamic>? ?? const [])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
       handler.resolve(
         Response(
           requestOptions: options,
           statusCode: lastBundleId?.isEmpty ?? true ? 400 : 200,
-          data: <String, String>{
+          data: <String, dynamic>{
             'token': 'sk-demo',
             'bundleId': lastBundleId ?? '',
             'appGroupId': lastAppGroupId ?? lastBundleId ?? '',
+            if (lastOpenToolServers.isNotEmpty)
+              'opentoolServers': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'ref': 'websearch',
+                  'server': <String, dynamic>{
+                    'repo': 'native',
+                    'name': 'opentool-server-websearch',
+                    'tag': '1.2.0',
+                  },
+                  'status': 'starting',
+                },
+              ],
           },
         ),
       );
@@ -2072,8 +2266,13 @@ class _AppKitInterceptor extends Interceptor {
         'event: welcome\n'
         'data: {"bundleId":"demo"}\n'
         '\n'
-        'event: callApp\n'
-        'data: {"bundleId":"com.demo.app","contentList":[{"type":"text","message":"ping"}]}\n'
+        'id: evt-provision-succeeded\n'
+        'event: appEvent\n'
+        'data: {"version":1,"id":"evt-provision-succeeded","type":"toolkit.provision.succeeded","source":"toolkit","time":"2026-07-15T10:29:00.000Z","subject":"websearch","data":{"ref":"websearch","name":"opentool-server-websearch","status":"running","server":{"repo":"native","name":"opentool-server-websearch","tag":"1.2.0"},"id":"tool-websearch"}}\n'
+        '\n'
+        'id: evt-provision-failed\n'
+        'event: appEvent\n'
+        'data: {"version":1,"id":"evt-provision-failed","type":"toolkit.provision.failed","source":"toolkit","time":"2026-07-15T10:30:00.000Z","subject":"websearch","data":{"ref":"websearch","name":"opentool-server-websearch","status":"failed","server":{"repo":"native","name":"opentool-server-websearch","tag":"1.2.0"},"error":{"code":"startFailed","message":"process exited"}}}\n'
         '\n',
         200,
         headers: <String, List<String>>{
@@ -2420,6 +2619,8 @@ class _CronKitInterceptor extends Interceptor {
 class _AppAuthRecoveryInterceptor extends Interceptor {
   final Map<String, int> _registerCounts = <String, int>{};
   final Map<String, List<String>> _registerRequests = <String, List<String>>{};
+  final Map<String, List<List<Map<String, dynamic>>>>
+  _registerOpenToolRequests = <String, List<List<Map<String, dynamic>>>>{};
   final Map<String, List<String>> _tokensByPath = <String, List<String>>{};
   final Set<String> _failedTokens = <String>{};
 
@@ -2437,6 +2638,16 @@ class _AppAuthRecoveryInterceptor extends Interceptor {
     );
   }
 
+  List<List<Map<String, dynamic>>> openToolRequestsFor(
+    String bundleId,
+    String? appGroupId,
+  ) {
+    return List<List<Map<String, dynamic>>>.from(
+      _registerOpenToolRequests[_key(bundleId, appGroupId)] ??
+          const <List<Map<String, dynamic>>>[],
+    );
+  }
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (options.path == '/appkit/register') {
@@ -2447,6 +2658,13 @@ class _AppAuthRecoveryInterceptor extends Interceptor {
       _registerRequests
           .putIfAbsent(key, () => <String>[])
           .add('$bundleId::${appGroupId ?? '<null>'}');
+      final declarations =
+          (payload['opentoolServers'] as List<dynamic>? ?? const [])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+      _registerOpenToolRequests
+          .putIfAbsent(key, () => <List<Map<String, dynamic>>>[])
+          .add(declarations);
       final count = (_registerCounts[key] ?? 0) + 1;
       _registerCounts[key] = count;
       final groupSegment = appGroupId ?? 'default';

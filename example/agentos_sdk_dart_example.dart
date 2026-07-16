@@ -17,14 +17,26 @@ Future<void> main(List<String> args) async {
 
   /// HTTP:
   /// POST http://localhost:8888/appkit/register
-  /// Body: {"bundleId":"com.mydomain.myapp","appGroupId":"com.mydomain.shared"}
+  /// Body: {"bundleId":"com.mydomain.myapp","appGroupId":"com.mydomain.shared","opentoolServers":[{"ref":"websearch","name":"opentool-server-websearch"}]}
   final registration = await sdk.agentos.registerBundle(
     bundleId: bundleId,
     appGroupId: 'com.mydomain.shared',
+    opentoolServers: const <OpenToolServerDeclaration>[
+      OpenToolServerDeclaration(
+        ref: 'websearch',
+        name: 'opentool-server-websearch',
+      ),
+    ],
   );
   print(
     'Registered bundle (bundleId: ${registration.bundleId}, appGroupId: ${registration.appGroupId})',
   );
+  for (final server in registration.opentoolServers) {
+    print(
+      'OpenTool ${server.ref}: ${server.status}'
+      '${server.id == null ? '' : ' (${server.id})'}',
+    );
+  }
 
   if (args.length >= 2 && args.first == '--history') {
     final messages = await sdk.agentkit.history(
@@ -107,8 +119,19 @@ class _DemoEventHandler extends AgentOSEventHandler {
   }
 
   @override
-  Future<void> onCallApp(Call call) async {
-    print('CallApp event for ${call.bundleId}: ${call.contentList}');
+  Future<void> onAppEvent(AppEvent event) async {
+    final success = event.openToolProvisionSuccess;
+    if (success != null) {
+      print('OpenTool ${success.ref} is ready: ${success.id}');
+      return;
+    }
+    final failure = event.openToolProvisionFailure;
+    if (failure != null) {
+      print(
+        'OpenTool ${failure.ref} failed: '
+        '${failure.error.code} ${failure.error.message}',
+      );
+    }
   }
 
   @override

@@ -1,3 +1,9 @@
+## 0.6.0
+
+- feat: declare native OpenTool server dependencies during AppKit registration and expose typed registration statuses.
+- feat: deliver AppKit `appEvent` notifications with typed OpenTool provisioning success and failure results through the subscription handler.
+- breaking: remove the retired AppKit `callApp` event DTO and handler callback.
+
 ## 0.5.2
 
 - fix: internally manage AgentKit chat subscriptions so `stop()` and `dispose()` close the HTTP stream without exposing the underlying stream API.
