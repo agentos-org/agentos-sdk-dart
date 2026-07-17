@@ -54,11 +54,13 @@ class ModelCapabilities {
     this.vision = false,
     this.toolCall = false,
     this.stream = true,
+    this.reasoning = false,
   });
 
   final bool vision;
   final bool toolCall;
   final bool stream;
+  final bool reasoning;
 
   factory ModelCapabilities.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const ModelCapabilities();
@@ -66,6 +68,7 @@ class ModelCapabilities {
       vision: json['vision'] as bool? ?? false,
       toolCall: json['tool_call'] as bool? ?? false,
       stream: json['stream'] as bool? ?? true,
+      reasoning: json['reasoning'] as bool? ?? false,
     );
   }
 
@@ -73,13 +76,15 @@ class ModelCapabilities {
     'vision': vision,
     'tool_call': toolCall,
     'stream': stream,
+    'reasoning': reasoning,
   };
 }
 
 /// Model descriptor returned by `/modelkit/models`.
 ///
 /// ModelKit classifies models by [task] and uses [inputModalities] +
-/// [capabilities] to describe multimodal, tool, and streaming support.
+/// [capabilities] to describe multimodal, tool, streaming, and reasoning
+/// support.
 class ModelInfo {
   ModelInfo({
     required this.id,
@@ -179,8 +184,9 @@ class ModelKitClient {
 
   final ApiClient _apiClient;
   late final ModelKitChatClient chat = ModelKitChatClient._(_apiClient);
-  late final ModelKitEmbeddingClient embedding =
-      ModelKitEmbeddingClient._(_apiClient);
+  late final ModelKitEmbeddingClient embedding = ModelKitEmbeddingClient._(
+    _apiClient,
+  );
   late final ModelKitAsrClient asr = ModelKitAsrClient._(_apiClient);
   late final ModelKitTtsClient tts = ModelKitTtsClient._(_apiClient);
 

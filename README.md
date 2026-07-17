@@ -269,7 +269,8 @@ CronSpec(
 
 `ModelInfo` describes each model with `task` (`ModelTask`), `inputModalities` /
 `outputModalities` (`Modality`), and `capabilities` (`ModelCapabilities`:
-`vision` / `toolCall` / `stream`). Convenience getters `hasVision`,
+`vision` / `toolCall` / `stream` / `reasoning`). In particular,
+`capabilities.reasoning` is a `bool`. Convenience getters `hasVision`,
 `supportsChatInference`, and `isVisionLanguage` are provided.
 
 ### ToolKitModule (`sdk.toolkit`)
