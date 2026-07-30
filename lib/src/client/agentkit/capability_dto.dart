@@ -144,6 +144,21 @@ class Capability extends SimpleCapability {
   bool? enableThinking;
   int? toolReturnPackMinLength;
 
+  /// Maximum LLM requests for one tool-based task.
+  int? maxLlmRequests;
+
+  /// Maximum tool-call rounds for one task.
+  int? maxToolRounds;
+
+  /// Maximum total tool calls for one task.
+  int? maxToolCalls;
+
+  /// Maximum consecutive rounds with identical tool calls.
+  int? maxConsecutiveIdenticalToolRounds;
+
+  /// Maximum duration of one tool-based task, in seconds.
+  int? maxTaskDurationSeconds;
+
   Capability({
     super.llmConfig,
     required super.systemPrompt,
@@ -158,6 +173,11 @@ class Capability extends SimpleCapability {
     this.llmConfigList,
     this.enableThinking,
     this.toolReturnPackMinLength,
+    this.maxLlmRequests,
+    this.maxToolRounds,
+    this.maxToolCalls,
+    this.maxConsecutiveIdenticalToolRounds,
+    this.maxTaskDurationSeconds,
   });
 
   factory Capability.fromJson(Map<String, dynamic> json) =>

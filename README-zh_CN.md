@@ -22,7 +22,7 @@ CronKit、RagKit、ModelKit（chat / embedding / asr / tts）和 ToolKit 发现�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.6.0
+  agentos_sdk: ^0.6.1
 ```
 
 然后执行：
@@ -318,6 +318,35 @@ await sdk.dispose();
 - `Capability` 支持：
   - `llmConfigList`
   - `toolReturnPackMinLength`
+
+`Capability` 还支持以下可选执行限制。SDK 会原样透传已提供的整数值，
+省略值为 `null` 的字段；字段校验与默认值均由服务端负责。
+
+| 字段 | 含义 | 服务端默认值 |
+| --- | --- | --- |
+| `maxLlmRequests` | 单个工具型任务的大模型请求次数上限。 | `64` |
+| `maxToolRounds` | 单个任务的工具调用轮数上限。 | `16` |
+| `maxToolCalls` | 单个任务的工具调用总数上限。 | `64` |
+| `maxConsecutiveIdenticalToolRounds` | 连续相同工具调用轮数上限。 | `3` |
+| `maxTaskDurationSeconds` | 单个工具型任务最长执行秒数。 | `300` |
+
+```dart
+final capability = Capability(
+  systemPrompt: '你是一个助手',
+  maxLlmRequests: 32,
+  maxToolRounds: 8,
+  maxToolCalls: 20,
+  maxConsecutiveIdenticalToolRounds: 2,
+  maxTaskDurationSeconds: 120,
+);
+
+await sdk.agentkit.initSession(capability: capability);
+
+final agent = Agent(name: 'limited-agent', capability: capability);
+await sdk.agentkit.createAgent(agent: agent);
+await sdk.agentkit.updateAgent(agentId: 'agent-id', agent: agent);
+```
+
 - `AgentMessage.completions` 支持 `limits`：
   - `maxTokens`
   - `contextWindowSize`

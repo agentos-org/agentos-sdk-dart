@@ -1,3 +1,7 @@
+## 0.6.1
+
+- feat: expose optional AgentKit `Capability` execution limits for LLM requests, tool usage, repeated tool rounds, and task duration.
+
 ## 0.6.0
 
 - feat: declare native OpenTool server dependencies during AppKit registration and expose typed registration statuses.

@@ -23,7 +23,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.6.0
+  agentos_sdk: ^0.6.1
 ```
 
 Then run:
@@ -317,6 +317,36 @@ await sdk.dispose();
 - `Capability` supports:
   - `llmConfigList`
   - `toolReturnPackMinLength`
+
+`Capability` also accepts these optional execution limits. The SDK forwards
+provided integer values unchanged, omits `null` values, and leaves validation
+and defaults to the server.
+
+| Field | Meaning | Server default |
+| --- | --- | --- |
+| `maxLlmRequests` | Maximum LLM requests for one tool-based task. | `64` |
+| `maxToolRounds` | Maximum tool-call rounds for one task. | `16` |
+| `maxToolCalls` | Maximum total tool calls for one task. | `64` |
+| `maxConsecutiveIdenticalToolRounds` | Maximum consecutive rounds with identical tool calls. | `3` |
+| `maxTaskDurationSeconds` | Maximum duration of one tool-based task, in seconds. | `300` |
+
+```dart
+final capability = Capability(
+  systemPrompt: 'You are an assistant',
+  maxLlmRequests: 32,
+  maxToolRounds: 8,
+  maxToolCalls: 20,
+  maxConsecutiveIdenticalToolRounds: 2,
+  maxTaskDurationSeconds: 120,
+);
+
+await sdk.agentkit.initSession(capability: capability);
+
+final agent = Agent(name: 'limited-agent', capability: capability);
+await sdk.agentkit.createAgent(agent: agent);
+await sdk.agentkit.updateAgent(agentId: 'agent-id', agent: agent);
+```
+
 - `AgentMessage.completions` supports `limits`:
   - `maxTokens`
   - `contextWindowSize`

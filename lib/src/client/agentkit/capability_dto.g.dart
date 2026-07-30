@@ -150,6 +150,12 @@ Capability _$CapabilityFromJson(Map<String, dynamic> json) => Capability(
       .toList(),
   enableThinking: json['enableThinking'] as bool?,
   toolReturnPackMinLength: (json['toolReturnPackMinLength'] as num?)?.toInt(),
+  maxLlmRequests: (json['maxLlmRequests'] as num?)?.toInt(),
+  maxToolRounds: (json['maxToolRounds'] as num?)?.toInt(),
+  maxToolCalls: (json['maxToolCalls'] as num?)?.toInt(),
+  maxConsecutiveIdenticalToolRounds:
+      (json['maxConsecutiveIdenticalToolRounds'] as num?)?.toInt(),
+  maxTaskDurationSeconds: (json['maxTaskDurationSeconds'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$CapabilityToJson(Capability instance) =>
@@ -171,6 +177,12 @@ Map<String, dynamic> _$CapabilityToJson(Capability instance) =>
       'llmConfigList': ?instance.llmConfigList?.map((e) => e.toJson()).toList(),
       'enableThinking': ?instance.enableThinking,
       'toolReturnPackMinLength': ?instance.toolReturnPackMinLength,
+      'maxLlmRequests': ?instance.maxLlmRequests,
+      'maxToolRounds': ?instance.maxToolRounds,
+      'maxToolCalls': ?instance.maxToolCalls,
+      'maxConsecutiveIdenticalToolRounds':
+          ?instance.maxConsecutiveIdenticalToolRounds,
+      'maxTaskDurationSeconds': ?instance.maxTaskDurationSeconds,
     };
 
 const _$PipelineStrategyTypeEnumMap = {
