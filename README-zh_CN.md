@@ -1,8 +1,8 @@
 # AgentOS SDK for Dart
 
 一个轻量的 Dart SDK，用于访问 AgentOS API，支持 Root、AgentKit、AppKit、
-CronKit、RagKit、ModelKit（chat / embedding / asr / tts）和 ToolKit 发现接口。
-推荐使用统一的 `AgentOSSDK`，无需手动管理 token。
+AuthKit、CronKit、DiscoveryKit、RagKit、ModelKit（chat / embedding / asr / tts）、
+ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手动管理 token。
 
 ## 功能
 
@@ -10,11 +10,14 @@ CronKit、RagKit、ModelKit（chat / embedding / asr / tts）和 ToolKit 发现�
 - AgentKit API：Agent CRUD、会话初始化、
   chat 流式/单次、历史记录、stop/clear、回调
 - AppKit API：bundle 注册与 SSE 订阅
+- AuthKit API：OAuth 式授权、token 交换、用户信息、授权列表、撤销
 - CronKit API：定时任务 CRUD、运行记录与调度器控制
+- DiscoveryKit API：附近设备发现、设备流、注册/注销
 - RagKit API：知识库、文档、同步与查询接口
 - ModelKit API：基于任务的模型列表，以及 `/modelkit/*` 下的 OpenAI 兼容
   chat / embedding / asr / tts 客户端
 - ToolKit API：tool 列表、tool 定义读取与 tool 生命周期事件订阅
+- TransferKit API：设备间文件传输、进度流、接收策略与传输历史
 
 ## 快速开始
 
@@ -168,10 +171,13 @@ AgentOSSDK({
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit 相关接口，内部处理 token。 |
 | `agentkit` | `AgentKitModule` | AgentKit 相关接口，内部处理 token。 |
+| `authkit` | `AuthKitModule` | AuthKit OAuth 式授权接口。 |
 | `cronkit` | `CronKitModule` | CronKit 相关接口，内部处理 token。 |
+| `discoverykit` | `DiscoveryKitModule` | DiscoveryKit 附近设备发现接口。 |
 | `ragkit` | `RagKitModule` | RagKit 知识库接口，内部处理 token。 |
 | `modelkit` | `ModelKitModule` | ModelKit 基于任务的模型列表与 chat / embedding / asr / tts 客户端。 |
 | `toolkit` | `ToolKitModule` | ToolKit 发现接口与 tool 生命周期事件订阅。 |
+| `transferkit` | `TransferKitModule` | TransferKit 文件传输接口。 |
 | `dispose()` | `Future<void>` | 释放 SDK 资源并取消当前 AppKit 订阅。 |
 
 ### AgentOSModule（`sdk.agentos`）
@@ -215,6 +221,43 @@ CronSpec(
 
 - `modelId` 是可选请求字段，CronKit 会用它解析底层模型配置。
 - `modelName` 是可选返回字段，会出现在 `CronTask.spec` 中，表示最终解析后的模型名。
+
+### AuthKitModule（`sdk.authkit`）
+
+| 方法 | 参数 | 说明 |
+| --- | --- | --- |
+| `authorize({AuthorizeRequest? request})` | `request` | 发起授权请求。 |
+| `getStatus({required String requestId})` | `requestId` | 轮询授权请求状态。 |
+| `exchangeToken({required ExchangeTokenRequest request})` | `request` | 使用 auth code 换取 access token。 |
+| `getUserInfo({required String accessToken})` | `accessToken` | 使用第三方 access token 获取用户信息（非 app token）。 |
+| `revoke({RevokeRequest? request})` | `request` | 撤销授权。 |
+### DiscoveryKitModule（`sdk.discoverykit`）
+
+| 方法 | 参数 | 说明 |
+| --- | --- | --- |
+| `getPeers()` | 无 | 返回附近设备的快照列表。 |
+| `streamPeers()` | 无 | 返回设备事件的 SSE 流（joined/left/updated）。 |
+| `getSelf()` | 无 | 返回本机设备信息和注册状态。 |
+| `register({DiscoveryRegisterRequest? request})` | `request` | 注册当前 app 到附近发现。 |
+| `unregister()` | 无 | 从附近发现中注销当前 app。 |
+
+### TransferKitModule（`sdk.transferkit`）
+
+| 方法 | 参数 | 说明 |
+| --- | --- | --- |
+| `send({required TransferSendRequest request})` | `request` | 向目标设备发起文件传输。 |
+| `listTransfers()` | 无 | 列出活跃的传输会话。 |
+| `getStatus({required String transferId})` | `transferId` | 获取指定传输的状态。 |
+| `streamProgress({required String transferId})` | `transferId` | 返回传输进度的 SSE 流。 |
+| `cancel({required String transferId})` | `transferId` | 取消活跃的传输。 |
+| `respond({required String transferId, required TransferRespondRequest request})` | `transferId`, `request` | 接受或拒绝一个传入的传输请求。 |
+| `receiveStream()` | 无 | 返回传入传输事件的 SSE 流。 |
+| `setPolicy({required SetPolicyRequest request})` | `request` | 设置文件接收策略（autoAccept / requireConfirm）。 |
+| `getPolicy()` | 无 | 获取当前文件接收策略。 |
+| `addHistory({required AddHistoryRequest request})` | `request` | 添加传输历史记录。 |
+| `getHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | 获取传输历史列表。 |
+| `deleteHistory({required String recordId, String? deviceId, String? userId})` | `recordId`, `deviceId`, `userId` | 删除指定传输历史记录。 |
+| `clearHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | 清空所有传输历史。 |
 
 ### AgentKitModule（`sdk.agentkit`）
 
@@ -430,8 +473,9 @@ await sdk.agentkit.stop(sessionId: sessionId);
 
 ## 备注
 
-- 在调用需要 token 的 `agentkit`/`agentos`/`cronkit` 接口前，请先调用 `agentos.registerBundle`。
-- `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`、`cronkit`、`ragkit`、`modelkit`、`toolkit`），便于按 API 领域区分。
+- 在调用需要 token 的 `agentkit`/`agentos`/`authkit`/`discoverykit`/`transferkit` 接口前，请先调用 `agentos.registerBundle`。
+- `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`、`authkit`、`cronkit`、
+  `discoverykit`、`ragkit`、`modelkit`、`toolkit`、`transferkit`），便于按 API 领域区分。
 - AgentKit 接口通过 `/agentkit/*` 对外提供。
 - CronKit 接口通过 `/cronkit/*` 对外提供。
 - `sdk.modelkit.chat` 请求 `/modelkit/chat/...`。

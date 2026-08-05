@@ -17,14 +17,20 @@ import 'agentos_event_handler.dart';
 import '../../utils/api_client.dart';
 import '../appkit/appkit_client.dart';
 import '../appkit/dto.dart';
+import '../authkit/authkit_client.dart';
+import '../authkit/dto.dart';
 import '../cronkit/cronkit_client.dart';
 import '../cronkit/dto.dart';
+import '../discoverykit/discoverykit_client.dart';
+import '../discoverykit/dto.dart';
 import '../ragkit/dto.dart';
 import '../ragkit/ragkit_client.dart';
 import '../systemkit/dto.dart';
 import '../systemkit/systemkit_client.dart';
 import '../modelkit/modelkit_client.dart';
 import '../toolkit/toolkit_client.dart';
+import '../transferkit/transferkit_client.dart';
+import '../transferkit/dto.dart';
 
 /// Unified AgentOS SDK that manages Root, AgentKit, and AppKit APIs.
 class AgentOSSDK {
@@ -50,6 +56,13 @@ class AgentOSSDK {
   late final RagKitClient _ragKit = RagKitClient(apiClient: _apiClient);
   late final ModelKitClient _modelKit = ModelKitClient(apiClient: _apiClient);
   late final ToolKitClient _toolKit = ToolKitClient(apiClient: _apiClient);
+  late final AuthKitClient _authKit = AuthKitClient(apiClient: _apiClient);
+  late final DiscoveryKitClient _discoveryKit = DiscoveryKitClient(
+    apiClient: _apiClient,
+  );
+  late final TransferKitClient _transferKit = TransferKitClient(
+    apiClient: _apiClient,
+  );
   final Map<_AppAuthCacheKey, String> _appTokens = <_AppAuthCacheKey, String>{};
   final Map<String, _AppAuthCacheKey> _tokenContexts =
       <String, _AppAuthCacheKey>{};
@@ -77,6 +90,9 @@ class AgentOSSDK {
   late final RagKitModule ragkit = RagKitModule._(this);
   late final ModelKitModule modelkit = ModelKitModule._(this);
   late final ToolKitModule toolkit = ToolKitModule._(this);
+  late final AuthKitModule authkit = AuthKitModule._(this);
+  late final DiscoveryKitModule discoverykit = DiscoveryKitModule._(this);
+  late final TransferKitModule transferkit = TransferKitModule._(this);
 
   static ApiClient _buildApiClient({
     String? baseUrl,
@@ -1259,6 +1275,227 @@ class ToolKitModule {
     return _client._toolKit.subscribeToolEvents(
       daemonApiKey: daemonApiKey,
       snapshot: snapshot,
+    );
+  }
+}
+
+class AuthKitModule {
+  AuthKitModule._(this._client);
+
+  final AgentOSSDK _client;
+
+  Future<AuthorizeResponse> authorize({AuthorizeRequest? request}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._authKit.authorize(bearerToken: bearerToken, request: request),
+    );
+  }
+
+  Future<AuthorizeResponse> getStatus({required String requestId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._authKit.getStatus(
+        bearerToken: bearerToken,
+        requestId: requestId,
+      ),
+    );
+  }
+
+  Future<ExchangeTokenResponse> exchangeToken({
+    required ExchangeTokenRequest request,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._authKit.exchangeToken(
+        bearerToken: bearerToken,
+        request: request,
+      ),
+    );
+  }
+
+  Future<AuthKitUserInfo> getUserInfo({required String accessToken}) {
+    return _client._authKit.getUserInfo(accessToken: accessToken);
+  }
+
+  Future<RevokeResponse> revoke({RevokeRequest? request}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._authKit.revoke(bearerToken: bearerToken, request: request),
+    );
+  }
+}
+
+class DiscoveryKitModule {
+  DiscoveryKitModule._(this._client);
+
+  final AgentOSSDK _client;
+
+  Future<List<PeerDevice>> getPeers() {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._discoveryKit.getPeers(bearerToken: bearerToken),
+    );
+  }
+
+  Future<Stream<PeerDeviceEvent>> streamPeers() {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._discoveryKit.streamPeers(bearerToken: bearerToken),
+    );
+  }
+
+  Future<SelfInfo> getSelf() {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._discoveryKit.getSelf(bearerToken: bearerToken),
+    );
+  }
+
+  Future<DiscoveryRegisterResponse> register({
+    DiscoveryRegisterRequest? request,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._discoveryKit.register(
+        bearerToken: bearerToken,
+        request: request,
+      ),
+    );
+  }
+
+  Future<DiscoveryUnregisterResponse> unregister() {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._discoveryKit.unregister(bearerToken: bearerToken),
+    );
+  }
+}
+
+class TransferKitModule {
+  TransferKitModule._(this._client);
+
+  final AgentOSSDK _client;
+
+  Future<TransferSession> send({required TransferSendRequest request}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._transferKit.send(bearerToken: bearerToken, request: request),
+    );
+  }
+
+  Future<List<TransferSession>> listTransfers() {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._transferKit.listTransfers(bearerToken: bearerToken),
+    );
+  }
+
+  Future<TransferSession> getStatus({required String transferId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._transferKit.getStatus(
+        bearerToken: bearerToken,
+        transferId: transferId,
+      ),
+    );
+  }
+
+  Future<Stream<TransferSession>> streamProgress({
+    required String transferId,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._transferKit.streamProgress(
+        bearerToken: bearerToken,
+        transferId: transferId,
+      ),
+    );
+  }
+
+  Future<StatusResponse> cancel({required String transferId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._transferKit.cancel(
+        bearerToken: bearerToken,
+        transferId: transferId,
+      ),
+    );
+  }
+
+  Future<StatusResponse> respond({
+    required String transferId,
+    required TransferRespondRequest request,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._transferKit.respond(
+        bearerToken: bearerToken,
+        transferId: transferId,
+        request: request,
+      ),
+    );
+  }
+
+  Future<Stream<IncomingTransferEvent>> receiveStream() {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._transferKit.receiveStream(bearerToken: bearerToken),
+    );
+  }
+
+  Future<PolicyResponse> setPolicy({required SetPolicyRequest request}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._transferKit.setPolicy(
+        bearerToken: bearerToken,
+        request: request,
+      ),
+    );
+  }
+
+  Future<PolicyResponse> getPolicy() {
+    return _client._withAppAuthRetry(
+      (bearerToken) =>
+          _client._transferKit.getPolicy(bearerToken: bearerToken),
+    );
+  }
+
+  Future<AddHistoryResponse> addHistory({required AddHistoryRequest request}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._transferKit.addHistory(
+        bearerToken: bearerToken,
+        request: request,
+      ),
+    );
+  }
+
+  Future<List<TransferHistoryRecord>> getHistory({
+    String? deviceId,
+    String? userId,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._transferKit.getHistory(
+        bearerToken: bearerToken,
+        deviceId: deviceId,
+        userId: userId,
+      ),
+    );
+  }
+
+  Future<StatusResponse> deleteHistory({
+    required String recordId,
+    String? deviceId,
+    String? userId,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._transferKit.deleteHistory(
+        bearerToken: bearerToken,
+        recordId: recordId,
+        deviceId: deviceId,
+        userId: userId,
+      ),
+    );
+  }
+
+  Future<StatusResponse> clearHistory({String? deviceId, String? userId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._transferKit.clearHistory(
+        bearerToken: bearerToken,
+        deviceId: deviceId,
+        userId: userId,
+      ),
     );
   }
 }

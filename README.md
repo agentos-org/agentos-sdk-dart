@@ -1,8 +1,8 @@
 # AgentOS SDK for Dart
 
 A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, AppKit,
-CronKit, RagKit, ModelKit (chat / embedding / asr / tts), and ToolKit discovery
-endpoints. Use the unified `AgentOSSDK` to avoid managing tokens manually.
+AuthKit, CronKit, DiscoveryKit, RagKit, ModelKit (chat / embedding / asr / tts),
+ToolKit, and TransferKit endpoints. Use the unified `AgentOSSDK` to avoid managing tokens manually.
 
 ## Features
 
@@ -10,12 +10,16 @@ endpoints. Use the unified `AgentOSSDK` to avoid managing tokens manually.
 - AgentKit API: agent CRUD, session init,
   chat stream/simple, history, stop/clear, callbacks)
 - AppKit API: bundle registration and SSE subscription
+- AuthKit API: OAuth-like authorization, token exchange, user info, revoke
 - CronKit API: cron task CRUD, run history, and scheduler control
+- DiscoveryKit API: nearby device discovery, peer streaming, registration
 - RagKit API: RAG base, document, sync, and query endpoints
 - ModelKit API: task-oriented model listing and OpenAI-compatible chat /
   embedding / asr / tts clients under `/modelkit/*`
 - ToolKit API: tool listing, tool definition loading, and tool lifecycle event
   subscription
+- TransferKit API: device-to-device file transfer, progress streaming, receive
+  policy, and transfer history
 
 ## Getting Started
 
@@ -169,10 +173,13 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit endpoints with internal token handling. |
 | `agentkit` | `AgentKitModule` | AgentKit endpoints with internal token handling. |
+| `authkit` | `AuthKitModule` | AuthKit OAuth-like authorization endpoints. |
 | `cronkit` | `CronKitModule` | CronKit task management endpoints with internal token handling. |
+| `discoverykit` | `DiscoveryKitModule` | DiscoveryKit nearby device discovery endpoints. |
 | `ragkit` | `RagKitModule` | RagKit knowledge-base endpoints with internal token handling. |
 | `modelkit` | `ModelKitModule` | ModelKit task-oriented model listing and chat / embedding / asr / tts clients. |
 | `toolkit` | `ToolKitModule` | ToolKit discovery endpoints and tool lifecycle event subscription. |
+| `transferkit` | `TransferKitModule` | TransferKit file transfer endpoints. |
 | `dispose()` | `Future<void>` | Releases SDK resources and cancels active AppKit subscription. |
 
 ### AgentOSModule (`sdk.agentos`)
@@ -216,6 +223,44 @@ CronSpec(
 
 - `modelId` is an optional request field used by CronKit to resolve the backing model.
 - `modelName` is an optional response field returned in `CronTask.spec` after resolution.
+
+### AuthKitModule (`sdk.authkit`)
+
+| Method | Parameters | Description |
+| --- | --- | --- |
+| `authorize({AuthorizeRequest? request})` | `request` | Initiates an authorization request. |
+| `getStatus({required String requestId})` | `requestId` | Polls the status of a pending authorization request. |
+| `exchangeToken({required ExchangeTokenRequest request})` | `request` | Exchanges an auth code for an access token. |
+| `getUserInfo({required String accessToken})` | `accessToken` | Retrieves user info using a third-party access token (not app token). |
+| `revoke({RevokeRequest? request})` | `request` | Revokes authorization grants. |
+
+### DiscoveryKitModule (`sdk.discoverykit`)
+
+| Method | Parameters | Description |
+| --- | --- | --- |
+| `getPeers()` | none | Returns a snapshot of nearby peer devices. |
+| `streamPeers()` | none | Returns an SSE stream of peer device events (joined/left/updated). |
+| `getSelf()` | none | Returns self device information and registration status. |
+| `register({DiscoveryRegisterRequest? request})` | `request` | Registers the current app for nearby discovery. |
+| `unregister()` | none | Unregisters the current app from nearby discovery. |
+
+### TransferKitModule (`sdk.transferkit`)
+
+| Method | Parameters | Description |
+| --- | --- | --- |
+| `send({required TransferSendRequest request})` | `request` | Initiates a file transfer to a target device. |
+| `listTransfers()` | none | Lists active transfer sessions. |
+| `getStatus({required String transferId})` | `transferId` | Gets the status of a specific transfer. |
+| `streamProgress({required String transferId})` | `transferId` | Returns an SSE stream of transfer progress updates. |
+| `cancel({required String transferId})` | `transferId` | Cancels an active transfer. |
+| `respond({required String transferId, required TransferRespondRequest request})` | `transferId`, `request` | Accepts or rejects an incoming transfer. |
+| `receiveStream()` | none | Returns an SSE stream of incoming transfer events. |
+| `setPolicy({required SetPolicyRequest request})` | `request` | Sets the file receive policy (autoAccept / requireConfirm). |
+| `getPolicy()` | none | Gets the current file receive policy. |
+| `addHistory({required AddHistoryRequest request})` | `request` | Adds a transfer history record. |
+| `getHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | Lists transfer history records. |
+| `deleteHistory({required String recordId, String? deviceId, String? userId})` | `recordId`, `deviceId`, `userId` | Deletes a specific transfer history record. |
+| `clearHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | Clears all transfer history records. |
 
 ### AgentKitModule (`sdk.agentkit`)
 
@@ -434,10 +479,11 @@ API does not expose the underlying Dart stream subscription.
 
 ## Notes
 
-- Call `agentos.registerBundle` before using `agentkit`/`agentos` APIs that
+- Call `agentos.registerBundle` before using `agentkit`/`agentos`/`authkit`/`discoverykit`/`transferkit` APIs that
   require a token.
-- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `cronkit`,
-  `ragkit`, `modelkit`, `toolkit`) for clearer separation of API areas.
+- `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `authkit`,
+  `cronkit`, `discoverykit`, `ragkit`, `modelkit`, `toolkit`, `transferkit`)
+  for clearer separation of API areas.
 - AgentKit endpoints are exposed under `/agentkit/*`.
 - `sdk.modelkit.chat` targets `/modelkit/chat/...`.
 - `sdk.toolkit.subscribeToolEvents(...)` requires a daemon API key and streams
