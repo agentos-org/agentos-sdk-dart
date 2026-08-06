@@ -209,55 +209,6 @@ class PolicyResponse {
   Map<String, dynamic> toJson() => _$PolicyResponseToJson(this);
 }
 
-@JsonSerializable(explicitToJson: true, includeIfNull: false)
-class AddHistoryRequest {
-  String? id;
-  TransferDirection? direction;
-  String? peerDeviceId;
-  String? peerName;
-  String? peerAvatarUrl;
-  List<TransferHistoryFile>? files;
-  int? totalSize;
-  TransferState? state;
-  String? timestamp;
-  String? savedDir;
-  String? deviceId;
-  String? userId;
-
-  AddHistoryRequest({
-    this.id,
-    this.direction,
-    this.peerDeviceId,
-    this.peerName,
-    this.peerAvatarUrl,
-    this.files,
-    this.totalSize,
-    this.state,
-    this.timestamp,
-    this.savedDir,
-    this.deviceId,
-    this.userId,
-  });
-
-  factory AddHistoryRequest.fromJson(Map<String, dynamic> json) =>
-      _$AddHistoryRequestFromJson(json);
-
-  Map<String, dynamic> toJson() => _$AddHistoryRequestToJson(this);
-}
-
-@JsonSerializable(includeIfNull: false)
-class AddHistoryResponse {
-  String status;
-  String id;
-
-  AddHistoryResponse({required this.status, required this.id});
-
-  factory AddHistoryResponse.fromJson(Map<String, dynamic> json) =>
-      _$AddHistoryResponseFromJson(json);
-
-  Map<String, dynamic> toJson() => _$AddHistoryResponseToJson(this);
-}
-
 @JsonSerializable(includeIfNull: false)
 class StatusResponse {
   String status;

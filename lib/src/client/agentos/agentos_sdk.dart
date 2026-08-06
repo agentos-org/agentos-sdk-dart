@@ -1452,15 +1452,6 @@ class TransferKitModule {
     );
   }
 
-  Future<AddHistoryResponse> addHistory({required AddHistoryRequest request}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._transferKit.addHistory(
-        bearerToken: bearerToken,
-        request: request,
-      ),
-    );
-  }
-
   Future<List<TransferHistoryRecord>> getHistory({
     String? deviceId,
     String? userId,

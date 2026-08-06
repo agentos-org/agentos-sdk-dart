@@ -257,7 +257,6 @@ CronSpec(
 | `receiveStream()` | none | Returns an SSE stream of incoming transfer events. |
 | `setPolicy({required SetPolicyRequest request})` | `request` | Sets the file receive policy (autoAccept / requireConfirm). |
 | `getPolicy()` | none | Gets the current file receive policy. |
-| `addHistory({required AddHistoryRequest request})` | `request` | Adds a transfer history record. |
 | `getHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | Lists transfer history records. |
 | `deleteHistory({required String recordId, String? deviceId, String? userId})` | `recordId`, `deviceId`, `userId` | Deletes a specific transfer history record. |
 | `clearHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | Clears all transfer history records. |

@@ -254,7 +254,6 @@ CronSpec(
 | `receiveStream()` | 无 | 返回传入传输事件的 SSE 流。 |
 | `setPolicy({required SetPolicyRequest request})` | `request` | 设置文件接收策略（autoAccept / requireConfirm）。 |
 | `getPolicy()` | 无 | 获取当前文件接收策略。 |
-| `addHistory({required AddHistoryRequest request})` | `request` | 添加传输历史记录。 |
 | `getHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | 获取传输历史列表。 |
 | `deleteHistory({required String recordId, String? deviceId, String? userId})` | `recordId`, `deviceId`, `userId` | 删除指定传输历史记录。 |
 | `clearHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | 清空所有传输历史。 |

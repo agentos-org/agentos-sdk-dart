@@ -196,52 +196,6 @@ Map<String, dynamic> _$PolicyResponseToJson(PolicyResponse instance) =>
       'bundleId': ?instance.bundleId,
     };
 
-AddHistoryRequest _$AddHistoryRequestFromJson(Map<String, dynamic> json) =>
-    AddHistoryRequest(
-      id: json['id'] as String?,
-      direction: $enumDecodeNullable(
-        _$TransferDirectionEnumMap,
-        json['direction'],
-      ),
-      peerDeviceId: json['peerDeviceId'] as String?,
-      peerName: json['peerName'] as String?,
-      peerAvatarUrl: json['peerAvatarUrl'] as String?,
-      files: (json['files'] as List<dynamic>?)
-          ?.map((e) => TransferHistoryFile.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      totalSize: (json['totalSize'] as num?)?.toInt(),
-      state: $enumDecodeNullable(_$TransferStateEnumMap, json['state']),
-      timestamp: json['timestamp'] as String?,
-      savedDir: json['savedDir'] as String?,
-      deviceId: json['deviceId'] as String?,
-      userId: json['userId'] as String?,
-    );
-
-Map<String, dynamic> _$AddHistoryRequestToJson(AddHistoryRequest instance) =>
-    <String, dynamic>{
-      'id': ?instance.id,
-      'direction': ?_$TransferDirectionEnumMap[instance.direction],
-      'peerDeviceId': ?instance.peerDeviceId,
-      'peerName': ?instance.peerName,
-      'peerAvatarUrl': ?instance.peerAvatarUrl,
-      'files': ?instance.files?.map((e) => e.toJson()).toList(),
-      'totalSize': ?instance.totalSize,
-      'state': ?_$TransferStateEnumMap[instance.state],
-      'timestamp': ?instance.timestamp,
-      'savedDir': ?instance.savedDir,
-      'deviceId': ?instance.deviceId,
-      'userId': ?instance.userId,
-    };
-
-AddHistoryResponse _$AddHistoryResponseFromJson(Map<String, dynamic> json) =>
-    AddHistoryResponse(
-      status: json['status'] as String,
-      id: json['id'] as String,
-    );
-
-Map<String, dynamic> _$AddHistoryResponseToJson(AddHistoryResponse instance) =>
-    <String, dynamic>{'status': instance.status, 'id': instance.id};
-
 StatusResponse _$StatusResponseFromJson(Map<String, dynamic> json) =>
     StatusResponse(status: json['status'] as String);
 

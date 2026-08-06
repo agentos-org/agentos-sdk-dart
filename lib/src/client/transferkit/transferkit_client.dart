@@ -167,20 +167,6 @@ class TransferKitClient {
     );
   }
 
-  Future<AddHistoryResponse> addHistory({
-    required String bearerToken,
-    required AddHistoryRequest request,
-  }) async {
-    final response = await _apiClient.dio.post<dynamic>(
-      '/transferkit/history',
-      data: request.toJson(),
-      options: _options(bearerToken),
-    );
-    return AddHistoryResponse.fromJson(
-      Map<String, dynamic>.from(response.data as Map),
-    );
-  }
-
   Future<List<TransferHistoryRecord>> getHistory({
     required String bearerToken,
     String? deviceId,
