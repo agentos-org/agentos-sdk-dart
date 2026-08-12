@@ -1,3 +1,14 @@
+## 0.7.0
+
+- breaking: require `opentool_daemon ^0.5.0` and expose its V2 daemon API,
+  server, pull, and tool DTOs.
+- breaking: align ToolKit server metadata with daemon 0.5 by replacing
+  `repo` / `tag` with `namespace` / `version`.
+- feat: expose daemon 0.5 tool materialization metadata through `ToolDto`,
+  including `materializedArtifactDigest` and `contentState`.
+- feat: re-export daemon 0.5 typed pull events, detailed server deletion
+  results, and stable `DaemonApiException` client errors.
+
 ## 0.6.1
 
 - feat: expose optional AgentKit `Capability` execution limits for LLM requests, tool usage, repeated tool rounds, and task duration.

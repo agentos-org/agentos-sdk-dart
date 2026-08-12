@@ -25,7 +25,7 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.6.1
+  agentos_sdk: ^0.7.0
 ```
 
 然后执行：
@@ -320,6 +320,14 @@ CronSpec(
 | `listTool([String? all])` | `all` | 从 `/toolkit/list` 获取当前可用 tools 列表。 |
 | `loadTool(String toolId)` | `toolId` | 从 `/toolkit/{toolId}/load` 读取 `OpenTool` 定义。 |
 | `subscribeToolEvents({required String daemonApiKey, bool snapshot = true})` | `daemonApiKey`, `snapshot` | 订阅 `/toolkit/events`，持续接收 `ToolLifecycleEventDto` 生命周期事件。 |
+
+`listTool` / `listTools` 返回 daemon 0.5 的 `ToolDto`。其中可选的 `server`
+标识使用 `namespace`、`name`、`version`；若 daemon 提供，
+`materializedArtifactDigest` 表示已物化内容的摘要，`contentState` 表示该内容
+是否为最新。SDK 同时重新导出 daemon 0.5 client API，包括用于能力协商的
+`VersionDto.apiVersion` 和 `VersionDto.capabilities`，以及类型化的 `PullEvent`
+事件流、详细的 `ServerDeleteResultDto` 删除结果和稳定的
+`DaemonApiException` 异常。
 
 ### AgentOSEventHandler
 

@@ -27,7 +27,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.6.1
+  agentos_sdk: ^0.7.0
 ```
 
 Then run:
@@ -324,6 +324,15 @@ CronSpec(
 | `listTool([String? all])` | `all` | Lists available tools from `/toolkit/list`. |
 | `loadTool(String toolId)` | `toolId` | Loads an `OpenTool` definition from `/toolkit/{toolId}/load`. |
 | `subscribeToolEvents({required String daemonApiKey, bool snapshot = true})` | `daemonApiKey`, `snapshot` | Subscribes to `/toolkit/events` and streams `ToolLifecycleEventDto` updates. |
+
+`listTool` / `listTools` return the daemon 0.5 `ToolDto`. Its optional
+`server` identity uses `namespace`, `name`, and `version`; when available,
+`materializedArtifactDigest` identifies the installed content and
+`contentState` reports whether that content is current. The SDK also re-exports
+the daemon 0.5 client API, including `VersionDto.apiVersion` and
+`VersionDto.capabilities` for capability negotiation, typed `PullEvent`
+streams, detailed `ServerDeleteResultDto` responses, and stable
+`DaemonApiException` errors.
 
 ### AgentOSEventHandler
 

@@ -938,11 +938,48 @@ void main() {
       expect(tools.first.id, equals('tool-weather'));
       expect(tools.first.status, equals('running'));
       expect(tools.first.serverId, equals('server-weather'));
-      expect(tools.first.server?.repo, equals('opentool-server-weather'));
+      expect(tools.first.server?.namespace, equals('opentool-server'));
       expect(tools.first.server?.name, equals('opentool-server-weather'));
-      expect(tools.first.server?.tag, equals('0.1.0'));
+      expect(tools.first.server?.version, equals('0.1.0'));
+      expect(tools.first.materializedArtifactDigest, equals('sha256:weather'));
+      expect(tools.first.contentState, equals('current'));
       expect(tools[1].alias, equals('calendar'));
       expect(tools[1].server, isNull);
+    });
+
+    test('exposes daemon 0.5 API negotiation metadata', () {
+      final version = VersionDto.fromJson(<String, dynamic>{
+        'name': 'OpenTool Daemon',
+        'version': '0.5.0',
+        'apiVersion': 2,
+        'capabilities': <String>['artifactRegistryV2', 'toolMaterializationV1'],
+      });
+
+      expect(version.apiVersion, equals(2));
+      expect(
+        version.capabilities,
+        containsAll(<String>['artifactRegistryV2', 'toolMaterializationV1']),
+      );
+    });
+
+    test('re-exports daemon 0.5 client additions', () {
+      final PullEvent pullEvent = PullStarted(
+        PullStartDto(stage: 'resolving', ref: 'native/demo@1.0.0'),
+      );
+      final deleteResult = ServerDeleteResultDto(
+        id: 'server-demo',
+        serverId: 'server-demo',
+        artifactRemoved: true,
+      );
+      const error = DaemonApiException(
+        code: 'TOOL_START_FAILED',
+        message: 'failed to start tool',
+        retryable: false,
+      );
+
+      expect(pullEvent, isA<PullStarted>());
+      expect(deleteResult.artifactRemoved, isTrue);
+      expect(error.code, equals('TOOL_START_FAILED'));
     });
 
     test('loads tool definition from /toolkit/{toolId}/load', () async {
@@ -3187,10 +3224,12 @@ class _ToolKitInterceptor extends Interceptor {
               'status': 'running',
               'serverId': 'server-weather',
               'server': <String, dynamic>{
-                'repo': 'opentool-server-weather',
+                'namespace': 'opentool-server',
                 'name': 'opentool-server-weather',
-                'tag': '0.1.0',
+                'version': '0.1.0',
               },
+              'materializedArtifactDigest': 'sha256:weather',
+              'contentState': 'current',
             },
             <String, dynamic>{
               'id': 'tool-calendar',
