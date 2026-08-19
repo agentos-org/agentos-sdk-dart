@@ -15,10 +15,10 @@ import '../agentkit/sessions_dto.dart';
 import 'agentos_connection_event.dart';
 import 'agentos_event_handler.dart';
 import '../../utils/api_client.dart';
-import '../appkit/appkit_client.dart';
-import '../appkit/dto.dart';
 import '../authkit/authkit_client.dart';
 import '../authkit/dto.dart';
+import '../appkit/appkit_client.dart';
+import '../appkit/dto.dart';
 import '../cronkit/cronkit_client.dart';
 import '../cronkit/dto.dart';
 import '../discoverykit/discoverykit_client.dart';
@@ -56,7 +56,9 @@ class AgentOSSDK {
   late final RagKitClient _ragKit = RagKitClient(apiClient: _apiClient);
   late final ModelKitClient _modelKit = ModelKitClient(apiClient: _apiClient);
   late final ToolKitClient _toolKit = ToolKitClient(apiClient: _apiClient);
-  late final AuthKitClient _authKit = AuthKitClient(apiClient: _apiClient);
+  late final AuthKitClient _authKitClient = AuthKitClient(
+    apiClient: _apiClient,
+  );
   late final DiscoveryKitClient _discoveryKit = DiscoveryKitClient(
     apiClient: _apiClient,
   );
@@ -1284,41 +1286,54 @@ class AuthKitModule {
 
   final AgentOSSDK _client;
 
-  Future<AuthorizeResponse> authorize({AuthorizeRequest? request}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._authKit.authorize(bearerToken: bearerToken, request: request),
-    );
-  }
-
-  Future<AuthorizeResponse> getStatus({required String requestId}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._authKit.getStatus(
-        bearerToken: bearerToken,
-        requestId: requestId,
-      ),
-    );
-  }
-
-  Future<ExchangeTokenResponse> exchangeToken({
-    required ExchangeTokenRequest request,
+  /// 把第三方 Server 返回的 [launchUri] 交给本机 AgentOS Desktop 展示授权页。
+  ///
+  /// 这是新 AuthKit 流程的唯一客户端入口。典型用法：
+  ///
+  /// ```dart
+  /// // 1. 先请求自己的 Server 开始登录，拿到 launchUri
+  /// final start = await myServer.startAgentOSLogin();
+  /// // 2. 交给 SDK 唤起 Desktop（原样透传，不要自行拼接）
+  /// final result = await sdk.authkit.openAuthorization(
+  ///   launchUri: start.launchUri,
+  /// );
+  /// if (result.isFailure) {
+  ///   // 按 result.errorCode 提示用户（如安装/启动 AgentOS Desktop）
+  /// }
+  /// // 3. 以自己 Server 的事务状态为准轮询登录结果
+  /// ```
+  ///
+  /// 返回值**不含**任何 OAuth 凭证：authorization code、ID Token、AgentOS
+  /// access/refresh token 只在你的 Server 与 AgentOS Server 之间流转。
+  /// [AuthorizationPresentationStatus.submitted] 也只代表 Desktop 已提交用户
+  /// 决定，不代表登录完成 —— 最终结果必须以你自己 Server 的事务状态为准。
+  ///
+  /// [waitForDecision] 默认 false，Desktop 展示授权页后立即返回 `opened`。
+  Future<AuthorizationPresentationResult> openAuthorization({
+    required String launchUri,
+    bool waitForDecision = false,
+    Duration? decisionTimeout,
   }) {
     return _client._withAppAuthRetry(
-      (bearerToken) => _client._authKit.exchangeToken(
+      (bearerToken) => _client._authKitClient.open(
         bearerToken: bearerToken,
-        request: request,
+        request: OpenAuthorizationRequest(
+          launchUri: launchUri,
+          waitForDecision: waitForDecision,
+          decisionTimeout: decisionTimeout,
+        ),
       ),
     );
   }
 
-  Future<AuthKitUserInfo> getUserInfo({required String accessToken}) {
-    return _client._authKit.getUserInfo(accessToken: accessToken);
-  }
-
-  Future<RevokeResponse> revoke({RevokeRequest? request}) {
+  /// 本机是否已具备承载授权界面的能力（Desktop 在运行且启动完成）。
+  ///
+  /// 可在发起登录前调用，以便提前提示用户安装 / 启动 / 解锁 AgentOS Desktop。
+  Future<bool> isAuthorizationReady() {
     return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._authKit.revoke(bearerToken: bearerToken, request: request),
+      (bearerToken) => _client._authKitClient.isReady(
+        bearerToken: bearerToken,
+      ),
     );
   }
 }

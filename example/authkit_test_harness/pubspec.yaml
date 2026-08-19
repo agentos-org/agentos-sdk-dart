@@ -1,0 +1,13 @@
+name: authkit_test_harness
+description: AuthKit 联调测试：模拟第三方应用/Server，对接真实 AgentOS Server。
+publish_to: none
+
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+
+dependencies:
+  agentos_sdk:
+    path: ../..
+  crypto: ^3.0.6
+  shelf: ^1.4.2
+  shelf_router: ^1.1.4
