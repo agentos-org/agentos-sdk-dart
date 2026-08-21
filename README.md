@@ -10,7 +10,7 @@ ToolKit, and TransferKit endpoints. Use the unified `AgentOSSDK` to avoid managi
 - AgentKit API: agent CRUD, session init,
   chat stream/simple, history, stop/clear, callbacks)
 - AppKit API: bundle registration and SSE subscription
-- AuthKit API: OAuth-like authorization, token exchange, user info, revoke
+- AuthKit API: deliver third-party login requests to local AgentOS Desktop
 - CronKit API: cron task CRUD, run history, and scheduler control
 - DiscoveryKit API: nearby device discovery, peer streaming, registration
 - RagKit API: RAG base, document, sync, and query endpoints
@@ -173,7 +173,7 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit endpoints with internal token handling. |
 | `agentkit` | `AgentKitModule` | AgentKit endpoints with internal token handling. |
-| `authkit` | `AuthKitModule` | AuthKit OAuth-like authorization endpoints. |
+| `authkit` | `AuthKitModule` | Delivers third-party login authorization to local Desktop. |
 | `cronkit` | `CronKitModule` | CronKit task management endpoints with internal token handling. |
 | `discoverykit` | `DiscoveryKitModule` | DiscoveryKit nearby device discovery endpoints. |
 | `ragkit` | `RagKitModule` | RagKit knowledge-base endpoints with internal token handling. |
@@ -226,13 +226,66 @@ CronSpec(
 
 ### AuthKitModule (`sdk.authkit`)
 
+Delivers third-party login authorization requests to the local AgentOS Desktop.
+The SDK does **not** implement OAuth endpoints and does **not** return
+authorization codes, ID tokens, or access tokens — those stay between your
+backend and AgentOS Server.
+
+**Typical flow:**
+
+1. Your backend creates an authorization request on AgentOS Server and returns
+   `launchUri` to the client.
+2. The client calls `sdk.authkit.openAuthorization(launchUri: ...)` to present
+   the consent UI on Desktop.
+3. Poll your backend's login transaction status for the final result.
+
 | Method | Parameters | Description |
 | --- | --- | --- |
-| `authorize({AuthorizeRequest? request})` | `request` | Initiates an authorization request. |
-| `getStatus({required String requestId})` | `requestId` | Polls the status of a pending authorization request. |
-| `exchangeToken({required ExchangeTokenRequest request})` | `request` | Exchanges an auth code for an access token. |
-| `getUserInfo({required String accessToken})` | `accessToken` | Retrieves user info using a third-party access token (not app token). |
-| `revoke({RevokeRequest? request})` | `request` | Revokes authorization grants. |
+| `openAuthorization({required String launchUri, bool waitForDecision = false, Duration? decisionTimeout})` | `launchUri`, `waitForDecision`, `decisionTimeout` | Delivers `launchUri` (unchanged from your server) to local Desktop. Returns `AuthorizationPresentationResult`. |
+| `isAuthorizationReady()` | none | Returns whether Desktop is running and ready to show the consent UI. |
+
+`openAuthorization` returns `AuthorizationPresentationResult`:
+
+| Status | Meaning |
+| --- | --- |
+| `opened` | Consent UI shown; user has not decided yet (default when `waitForDecision` is false). |
+| `submitted` | User approved and Desktop submitted the decision to AgentOS Server. **Does not mean login is complete.** |
+| `denied` | User declined. |
+| `failed` | Local delivery failed; see `errorCode`. |
+
+Common `errorCode` values:
+
+| Error code | Meaning |
+| --- | --- |
+| `desktop_not_running` | Desktop gateway is unreachable. |
+| `desktop_not_ready` | Desktop is starting; UI not ready yet. |
+| `desktop_not_logged_in` | Desktop is not signed in to AgentOS. |
+| `invalid_launch_uri` | `launchUri` must be passed through from your server as-is. |
+| `authorization_expired` | Request expired; start login again. |
+| `authorization_not_found` | Request missing or already handled. |
+
+Example:
+
+```dart
+await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+
+if (!await sdk.authkit.isAuthorizationReady()) {
+  // Prompt user to install / launch / sign in to AgentOS Desktop
+}
+
+final start = await myBackend.startAgentOSLogin(); // returns launchUri from AgentOS Server
+final result = await sdk.authkit.openAuthorization(
+  launchUri: start.launchUri,
+);
+if (result.isFailure) {
+  print('AuthKit error: ${result.errorCode}');
+} else {
+  // Poll your backend for the final login transaction status
+}
+```
+
+For end-to-end local testing, see
+[`example/authkit_test_harness/`](example/authkit_test_harness/README.md).
 
 ### DiscoveryKitModule (`sdk.discoverykit`)
 
@@ -489,6 +542,8 @@ API does not expose the underlying Dart stream subscription.
 
 - Call `agentos.registerBundle` before using `agentkit`/`agentos`/`authkit`/`discoverykit`/`transferkit` APIs that
   require a token.
+- `authkit.openAuthorization` only delivers the consent UI locally. Treat your
+  backend's login transaction status as the source of truth for login success.
 - `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `authkit`,
   `cronkit`, `discoverykit`, `ragkit`, `modelkit`, `toolkit`, `transferkit`)
   for clearer separation of API areas.

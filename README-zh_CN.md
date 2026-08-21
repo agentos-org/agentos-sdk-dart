@@ -10,7 +10,7 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 - AgentKit API：Agent CRUD、会话初始化、
   chat 流式/单次、历史记录、stop/clear、回调
 - AppKit API：bundle 注册与 SSE 订阅
-- AuthKit API：OAuth 式授权、token 交换、用户信息、授权列表、撤销
+- AuthKit API：将第三方登录授权请求投递到本机 AgentOS Desktop
 - CronKit API：定时任务 CRUD、运行记录与调度器控制
 - DiscoveryKit API：附近设备发现、设备流、注册/注销
 - RagKit API：知识库、文档、同步与查询接口
@@ -171,7 +171,7 @@ AgentOSSDK({
 | --- | --- | --- |
 | `agentos` | `AgentOSModule` | Root/AppKit 相关接口，内部处理 token。 |
 | `agentkit` | `AgentKitModule` | AgentKit 相关接口，内部处理 token。 |
-| `authkit` | `AuthKitModule` | AuthKit OAuth 式授权接口。 |
+| `authkit` | `AuthKitModule` | 将第三方登录授权投递到本机 Desktop。 |
 | `cronkit` | `CronKitModule` | CronKit 相关接口，内部处理 token。 |
 | `discoverykit` | `DiscoveryKitModule` | DiscoveryKit 附近设备发现接口。 |
 | `ragkit` | `RagKitModule` | RagKit 知识库接口，内部处理 token。 |
@@ -224,13 +224,63 @@ CronSpec(
 
 ### AuthKitModule（`sdk.authkit`）
 
+将第三方登录授权请求投递到本机 AgentOS Desktop。SDK **不实现** OAuth 端点，
+也**不返回** authorization code、ID Token 或 access token —— 这些只在你的
+Server 与 AgentOS Server 之间流转。
+
+**典型流程：**
+
+1. 你的 Server 向 AgentOS Server 创建授权请求，并把 `launchUri` 返回给 Client。
+2. Client 调用 `sdk.authkit.openAuthorization(launchUri: ...)` 在本机 Desktop 展示授权页。
+3. 轮询你自己 Server 的登录事务状态，获取最终结果。
+
 | 方法 | 参数 | 说明 |
 | --- | --- | --- |
-| `authorize({AuthorizeRequest? request})` | `request` | 发起授权请求。 |
-| `getStatus({required String requestId})` | `requestId` | 轮询授权请求状态。 |
-| `exchangeToken({required ExchangeTokenRequest request})` | `request` | 使用 auth code 换取 access token。 |
-| `getUserInfo({required String accessToken})` | `accessToken` | 使用第三方 access token 获取用户信息（非 app token）。 |
-| `revoke({RevokeRequest? request})` | `request` | 撤销授权。 |
+| `openAuthorization({required String launchUri, bool waitForDecision = false, Duration? decisionTimeout})` | `launchUri`, `waitForDecision`, `decisionTimeout` | 将 Server 返回的 `launchUri` **原样透传**给本机 Desktop，返回 `AuthorizationPresentationResult`。 |
+| `isAuthorizationReady()` | 无 | 探测本机 Desktop 是否已运行且可展示授权界面。 |
+
+`openAuthorization` 返回 `AuthorizationPresentationResult`：
+
+| 状态 | 含义 |
+| --- | --- |
+| `opened` | 授权页已展示，用户尚未做出选择（`waitForDecision` 为 false 时的默认结果）。 |
+| `submitted` | 用户已同意，Desktop 已将决定提交给 AgentOS Server。**不代表登录已完成。** |
+| `denied` | 用户已拒绝。 |
+| `failed` | 本机投递失败，详见 `errorCode`。 |
+
+常见 `errorCode`：
+
+| 错误码 | 含义 |
+| --- | --- |
+| `desktop_not_running` | 本机 Desktop 网关不可达。 |
+| `desktop_not_ready` | Desktop 正在启动，授权界面尚未就绪。 |
+| `desktop_not_logged_in` | Desktop 未登录 AgentOS 账号。 |
+| `invalid_launch_uri` | `launchUri` 必须原样使用 Server 返回值，不要自行拼接。 |
+| `authorization_expired` | 授权请求已过期，需重新发起登录。 |
+| `authorization_not_found` | 授权请求不存在或已被处理。 |
+
+示例：
+
+```dart
+await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
+
+if (!await sdk.authkit.isAuthorizationReady()) {
+  // 提示用户安装 / 启动 / 登录 AgentOS Desktop
+}
+
+final start = await myBackend.startAgentOSLogin(); // Server 从 AgentOS Server 取得 launchUri
+final result = await sdk.authkit.openAuthorization(
+  launchUri: start.launchUri,
+);
+if (result.isFailure) {
+  print('AuthKit error: ${result.errorCode}');
+} else {
+  // 轮询你自己 Server 的登录事务状态
+}
+```
+
+端到端联调示例见 [`example/authkit_test_harness/`](example/authkit_test_harness/README.md)。
+
 ### DiscoveryKitModule（`sdk.discoverykit`）
 
 | 方法 | 参数 | 说明 |
@@ -481,6 +531,7 @@ await sdk.agentkit.stop(sessionId: sessionId);
 ## 备注
 
 - 在调用需要 token 的 `agentkit`/`agentos`/`authkit`/`discoverykit`/`transferkit` 接口前，请先调用 `agentos.registerBundle`。
+- `authkit.openAuthorization` 只负责在本机展示授权页；登录是否成功以你自己 Server 的事务状态为准。
 - `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`、`authkit`、`cronkit`、
   `discoverykit`、`ragkit`、`modelkit`、`toolkit`、`transferkit`），便于按 API 领域区分。
 - AgentKit 接口通过 `/agentkit/*` 对外提供。
