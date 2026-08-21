@@ -8,6 +8,8 @@
   including `materializedArtifactDigest` and `contentState`.
 - feat: re-export daemon 0.5 typed pull events, detailed server deletion
   results, and stable `DaemonApiException` client errors.
+- fix: accept both V2 `namespace` / `version` and legacy `repo` / `tag`
+  metadata in AppKit OpenTool registration and provisioning responses.
 
 ## 0.6.1
 

@@ -23,9 +23,9 @@ void main() {
           <String, dynamic>{
             'ref': 'running-tool',
             'server': <String, dynamic>{
-              'repo': 'native',
+              'namespace': 'local',
               'name': 'opentool-server-running',
-              'tag': '1.0.0',
+              'version': '1.0.0',
             },
             'status': 'running',
             'id': 'tool-1',
@@ -56,12 +56,37 @@ void main() {
         ]),
       );
       expect(registration.opentoolServers[0].id, equals('tool-1'));
+      expect(
+        registration.opentoolServers[0].server?.namespace,
+        equals('local'),
+      );
+      expect(registration.opentoolServers[0].server?.version, equals('1.0.0'));
+      expect(registration.opentoolServers[0].server?.repo, equals('local'));
+      expect(registration.opentoolServers[0].server?.tag, equals('1.0.0'));
       expect(registration.opentoolServers[1].id, isNull);
       expect(
         registration.opentoolServers[2].name,
         equals('opentool-server-missing'),
       );
       expect(registration.opentoolServers[2].server, isNull);
+    });
+
+    test('accepts legacy OpenTool server fields and writes V2 fields', () {
+      final server = OpenToolResolvedServer.fromJson(<String, dynamic>{
+        'repo': 'native',
+        'name': 'opentool-server-websearch',
+        'tag': '1.2.0',
+      });
+
+      expect(server.repo, equals('native'));
+      expect(server.namespace, equals('native'));
+      expect(server.tag, equals('1.2.0'));
+      expect(server.version, equals('1.2.0'));
+      expect(server.toJson(), <String, dynamic>{
+        'namespace': 'native',
+        'name': 'opentool-server-websearch',
+        'version': '1.2.0',
+      });
     });
 
     test('parses and serializes token usage contextUsageRatio', () {
@@ -312,7 +337,8 @@ void main() {
         expect(success, isNotNull);
         expect(success!.ref, equals('websearch'));
         expect(success.status, equals(OpenToolRegistrationStatus.running));
-        expect(success.server.tag, equals('1.2.0'));
+        expect(success.server.namespace, equals('local'));
+        expect(success.server.version, equals('1.2.0'));
         expect(success.id, equals('tool-websearch'));
 
         final failureEvent = handler.events.singleWhere(
@@ -322,7 +348,8 @@ void main() {
         expect(failure, isNotNull);
         expect(failure!.ref, equals('websearch'));
         expect(failure.status, equals('failed'));
-        expect(failure.server?.tag, equals('1.2.0'));
+        expect(failure.server?.namespace, equals('local'));
+        expect(failure.server?.version, equals('1.2.0'));
         expect(failure.error.code, equals('startFailed'));
         expect(failure.error.message, equals('process exited'));
 
@@ -2268,9 +2295,9 @@ class _AppKitInterceptor extends Interceptor {
                 <String, dynamic>{
                   'ref': 'websearch',
                   'server': <String, dynamic>{
-                    'repo': 'native',
+                    'namespace': 'local',
                     'name': 'opentool-server-websearch',
-                    'tag': '1.2.0',
+                    'version': '1.2.0',
                   },
                   'status': 'starting',
                 },
@@ -2305,11 +2332,11 @@ class _AppKitInterceptor extends Interceptor {
         '\n'
         'id: evt-provision-succeeded\n'
         'event: appEvent\n'
-        'data: {"version":1,"id":"evt-provision-succeeded","type":"toolkit.provision.succeeded","source":"toolkit","time":"2026-07-15T10:29:00.000Z","subject":"websearch","data":{"ref":"websearch","name":"opentool-server-websearch","status":"running","server":{"repo":"native","name":"opentool-server-websearch","tag":"1.2.0"},"id":"tool-websearch"}}\n'
+        'data: {"version":1,"id":"evt-provision-succeeded","type":"toolkit.provision.succeeded","source":"toolkit","time":"2026-07-15T10:29:00.000Z","subject":"websearch","data":{"ref":"websearch","name":"opentool-server-websearch","status":"running","server":{"namespace":"local","name":"opentool-server-websearch","version":"1.2.0"},"id":"tool-websearch"}}\n'
         '\n'
         'id: evt-provision-failed\n'
         'event: appEvent\n'
-        'data: {"version":1,"id":"evt-provision-failed","type":"toolkit.provision.failed","source":"toolkit","time":"2026-07-15T10:30:00.000Z","subject":"websearch","data":{"ref":"websearch","name":"opentool-server-websearch","status":"failed","server":{"repo":"native","name":"opentool-server-websearch","tag":"1.2.0"},"error":{"code":"startFailed","message":"process exited"}}}\n'
+        'data: {"version":1,"id":"evt-provision-failed","type":"toolkit.provision.failed","source":"toolkit","time":"2026-07-15T10:30:00.000Z","subject":"websearch","data":{"ref":"websearch","name":"opentool-server-websearch","status":"failed","server":{"namespace":"local","name":"opentool-server-websearch","version":"1.2.0"},"error":{"code":"startFailed","message":"process exited"}}}\n'
         '\n',
         200,
         headers: <String, List<String>>{

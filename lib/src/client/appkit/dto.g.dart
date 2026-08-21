@@ -91,17 +91,17 @@ Map<String, dynamic> _$OpenToolServerDeclarationToJson(
 OpenToolResolvedServer _$OpenToolResolvedServerFromJson(
   Map<String, dynamic> json,
 ) => OpenToolResolvedServer(
-  repo: json['repo'] as String,
+  repo: _readOpenToolNamespace(json, 'namespace') as String,
   name: json['name'] as String,
-  tag: json['tag'] as String,
+  tag: _readOpenToolVersion(json, 'version') as String,
 );
 
 Map<String, dynamic> _$OpenToolResolvedServerToJson(
   OpenToolResolvedServer instance,
 ) => <String, dynamic>{
-  'repo': instance.repo,
+  'namespace': instance.repo,
   'name': instance.name,
-  'tag': instance.tag,
+  'version': instance.tag,
 };
 
 OpenToolServerRegistration _$OpenToolServerRegistrationFromJson(

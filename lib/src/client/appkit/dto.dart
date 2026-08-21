@@ -108,8 +108,23 @@ class OpenToolResolvedServer {
     required this.tag,
   });
 
+  /// The OpenTool V2 namespace.
+  ///
+  /// [repo] is retained as the stored field for source compatibility with
+  /// SDK clients built against the legacy AppKit response shape.
+  String get namespace => repo;
+
+  @JsonKey(name: 'namespace', readValue: _readOpenToolNamespace)
   final String repo;
   final String name;
+
+  /// The OpenTool V2 server version.
+  ///
+  /// [tag] is retained as the stored field for source compatibility with SDK
+  /// clients built against the legacy AppKit response shape.
+  String get version => tag;
+
+  @JsonKey(name: 'version', readValue: _readOpenToolVersion)
   final String tag;
 
   factory OpenToolResolvedServer.fromJson(Map<String, dynamic> json) =>
@@ -117,6 +132,12 @@ class OpenToolResolvedServer {
 
   Map<String, dynamic> toJson() => _$OpenToolResolvedServerToJson(this);
 }
+
+Object? _readOpenToolNamespace(Map<dynamic, dynamic> json, String _) =>
+    json['namespace'] ?? json['repo'];
+
+Object? _readOpenToolVersion(Map<dynamic, dynamic> json, String _) =>
+    json['version'] ?? json['tag'];
 
 /// Status values returned for declared OpenTool servers.
 class OpenToolRegistrationStatus {
