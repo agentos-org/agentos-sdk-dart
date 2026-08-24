@@ -29,7 +29,6 @@ OpenSpec _$OpenSpecFromJson(Map<String, dynamic> json) => OpenSpec(
       : ApiKey.fromJson(json['apiKey'] as Map<String, dynamic>),
   protocol: $enumDecode(_$ProtocolEnumMap, json['protocol']),
   serverUrl: json['serverUrl'] as String?,
-  openToolId: json['openToolId'] as String?,
 );
 
 Map<String, dynamic> _$OpenSpecToJson(OpenSpec instance) => <String, dynamic>{
@@ -37,17 +36,14 @@ Map<String, dynamic> _$OpenSpecToJson(OpenSpec instance) => <String, dynamic>{
   'apiKey': ?instance.apiKey?.toJson(),
   'protocol': _$ProtocolEnumMap[instance.protocol]!,
   'serverUrl': ?instance.serverUrl,
-  'openToolId': ?instance.openToolId,
 };
 
 const _$ProtocolEnumMap = {
   Protocol.openapi: 'openapi',
-  Protocol.openmodbus: 'openmodbus',
   Protocol.jsonrpcHttp: 'jsonrpcHttp',
   Protocol.opentool: 'opentool',
   Protocol.mcpStdio: 'mcpStdio',
   Protocol.mcpHttp: 'mcpHttp',
-  Protocol.serialport: 'serialport',
 };
 
 CallbackOpenTool _$CallbackOpenToolFromJson(Map<String, dynamic> json) =>
@@ -64,22 +60,32 @@ Map<String, dynamic> _$CallbackOpenToolToJson(CallbackOpenTool instance) =>
 
 LLMConfig _$LLMConfigFromJson(Map<String, dynamic> json) => LLMConfig(
   modelId: json['modelId'] as String?,
+  provider: json['provider'] as String?,
   baseUrl: json['baseUrl'] as String?,
   apiKey: json['apiKey'] as String?,
   model: json['model'] as String?,
+  adapter: json['adapter'] as String?,
+  headers: (json['headers'] as Map<String, dynamic>?)?.map(
+    (k, e) => MapEntry(k, e as String),
+  ),
+  providerOptions: json['providerOptions'] as Map<String, dynamic>?,
   temperature: (json['temperature'] as num?)?.toDouble() ?? 0.0,
   maxTokens: (json['maxTokens'] as num?)?.toInt() ?? 4096,
   contextWindowSize: (json['contextWindowSize'] as num?)?.toInt(),
   topP: (json['topP'] as num?)?.toDouble() ?? 1.0,
   supportsToolCall: json['supportsToolCall'] as bool? ?? true,
-  supportsReasoning: json['supportsReasoning'] as bool? ?? true,
+  supportsReasoning: json['supportsReasoning'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$LLMConfigToJson(LLMConfig instance) => <String, dynamic>{
   'modelId': ?instance.modelId,
+  'provider': ?instance.provider,
   'baseUrl': ?instance.baseUrl,
   'apiKey': ?instance.apiKey,
   'model': ?instance.model,
+  'adapter': ?instance.adapter,
+  'headers': ?instance.headers,
+  'providerOptions': ?instance.providerOptions,
   'temperature': instance.temperature,
   'maxTokens': instance.maxTokens,
   'contextWindowSize': ?instance.contextWindowSize,
@@ -88,30 +94,22 @@ Map<String, dynamic> _$LLMConfigToJson(LLMConfig instance) => <String, dynamic>{
   'supportsReasoning': instance.supportsReasoning,
 };
 
-ReflectPrompt _$ReflectPromptFromJson(Map<String, dynamic> json) =>
-    ReflectPrompt(
-      llmConfig: LLMConfig.fromJson(json['llmConfig'] as Map<String, dynamic>),
-      prompt: json['prompt'] as String,
-    );
-
-Map<String, dynamic> _$ReflectPromptToJson(ReflectPrompt instance) =>
-    <String, dynamic>{
-      'llmConfig': instance.llmConfig.toJson(),
-      'prompt': instance.prompt,
-    };
-
 SimpleCapability _$SimpleCapabilityFromJson(Map<String, dynamic> json) =>
     SimpleCapability(
       llmConfig: json['llmConfig'] == null
           ? null
           : LLMConfig.fromJson(json['llmConfig'] as Map<String, dynamic>),
       systemPrompt: json['systemPrompt'] as String,
+      skills: (json['skills'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$SimpleCapabilityToJson(SimpleCapability instance) =>
     <String, dynamic>{
       'llmConfig': ?instance.llmConfig?.toJson(),
       'systemPrompt': instance.systemPrompt,
+      'skills': ?instance.skills,
     };
 
 Capability _$CapabilityFromJson(Map<String, dynamic> json) => Capability(
@@ -119,6 +117,7 @@ Capability _$CapabilityFromJson(Map<String, dynamic> json) => Capability(
       ? null
       : LLMConfig.fromJson(json['llmConfig'] as Map<String, dynamic>),
   systemPrompt: json['systemPrompt'] as String,
+  skills: (json['skills'] as List<dynamic>?)?.map((e) => e as String).toList(),
   openSpecList: (json['openSpecList'] as List<dynamic>?)
       ?.map((e) => OpenSpec.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -127,11 +126,8 @@ Capability _$CapabilityFromJson(Map<String, dynamic> json) => Capability(
       : CallbackOpenTool.fromJson(
           json['callbackOpenTool'] as Map<String, dynamic>,
         ),
-  sessionList: (json['sessionList'] as List<dynamic>?)
-      ?.map((e) => SessionName.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  reflectPromptList: (json['reflectPromptList'] as List<dynamic>?)
-      ?.map((e) => ReflectPrompt.fromJson(e as Map<String, dynamic>))
+  subAgentList: (json['subAgentList'] as List<dynamic>?)
+      ?.map((e) => Agent.fromJson(e as Map<String, dynamic>))
       .toList(),
   timeoutSeconds: (json['timeoutSeconds'] as num?)?.toInt() ?? 3600,
   taskPipelineStrategy:
@@ -162,12 +158,10 @@ Map<String, dynamic> _$CapabilityToJson(Capability instance) =>
     <String, dynamic>{
       'llmConfig': ?instance.llmConfig?.toJson(),
       'systemPrompt': instance.systemPrompt,
+      'skills': ?instance.skills,
       'openSpecList': ?instance.openSpecList?.map((e) => e.toJson()).toList(),
       'callbackOpenTool': ?instance.callbackOpenTool?.toJson(),
-      'sessionList': ?instance.sessionList?.map((e) => e.toJson()).toList(),
-      'reflectPromptList': ?instance.reflectPromptList
-          ?.map((e) => e.toJson())
-          .toList(),
+      'subAgentList': ?instance.subAgentList?.map((e) => e.toJson()).toList(),
       'timeoutSeconds': instance.timeoutSeconds,
       'taskPipelineStrategy':
           _$PipelineStrategyTypeEnumMap[instance.taskPipelineStrategy]!,

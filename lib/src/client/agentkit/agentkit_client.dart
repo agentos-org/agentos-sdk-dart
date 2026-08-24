@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 import 'package:sse_client_dart/sse_client_dart.dart';
 
 import '../../utils/api_client.dart';
-import 'agents_dto.dart';
 import 'capability_dto.dart';
 import 'common_dto.dart';
 import 'messages_dto.dart';
@@ -26,67 +25,13 @@ class AgentKitClient {
     return Version.fromJson(Map<String, dynamic>.from(response.data as Map));
   }
 
-  Future<Map<String, dynamic>> getAgent({
-    required String bearerToken,
-    required String agentId,
-  }) async {
-    final Response<dynamic> response = await _apiClient.dio.get(
-      '/agentkit/agent',
-      queryParameters: AgentId(agentId: agentId).toJson(),
-      options: _authOptions(bearerToken),
-    );
-    return _asJsonMap(response.data);
-  }
-
-  Future<Map<String, dynamic>> createAgent({
-    required String bearerToken,
-    required Agent agent,
-  }) async {
-    final Response<dynamic> response = await _apiClient.dio.post(
-      '/agentkit/agent/create',
-      data: agent.toJson(),
-      options: _authOptions(bearerToken),
-    );
-    return _asJsonMap(response.data);
-  }
-
-  Future<Map<String, dynamic>> updateAgent({
-    required String bearerToken,
-    required String agentId,
-    required Agent agent,
-  }) async {
-    final Response<dynamic> response = await _apiClient.dio.post(
-      '/agentkit/agent/update',
-      data: agent.toJson(),
-      queryParameters: AgentId(agentId: agentId).toJson(),
-      options: _authOptions(bearerToken),
-    );
-    return _asJsonMap(response.data);
-  }
-
-  Future<Map<String, dynamic>> deleteAgent({
-    required String bearerToken,
-    required String agentId,
-  }) async {
-    final Response<dynamic> response = await _apiClient.dio.get(
-      '/agentkit/agent/delete',
-      queryParameters: AgentId(agentId: agentId).toJson(),
-      options: _authOptions(bearerToken),
-    );
-    return _asJsonMap(response.data);
-  }
-
   Future<Map<String, dynamic>> initSession({
     required String bearerToken,
     Capability? capability,
-    String? agentId,
   }) async {
     final Response<dynamic> response = await _apiClient.dio.post(
       '/agentkit/initSession',
       data: capability?.toJson(),
-      queryParameters: agentId == null
-          ? null
-          : AgentId(agentId: agentId).toJson(),
       options: _authOptions(bearerToken),
     );
     return _asJsonMap(response.data);

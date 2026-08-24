@@ -1,3 +1,14 @@
+## 0.8.0
+
+- breaking: align AgentKit with LiteAgent 0.4 by removing persisted agent
+  management APIs and the legacy `agentId` session initializer.
+- breaking: replace `Capability.sessionList` with recursive inline
+  `subAgentList`, and remove retired reflection DTOs and message fields.
+- breaking: remove retired AgentKit OpenSpec protocols and `openToolId`, and
+  align the default `supportsReasoning` value with LiteAgent 0.4.
+- feat: support Agent Skills markdown documents and extended provider-specific
+  LLM configuration fields in AgentKit capabilities.
+
 ## 0.7.0
 
 - breaking: require `opentool_daemon ^0.5.0` and expose its V2 daemon API,

@@ -7,7 +7,6 @@ import 'package:opentool_dart/opentool_schema.dart';
 
 import '../agentkit/agent_message_handler.dart';
 import '../agentkit/agentkit_client.dart';
-import '../agentkit/agents_dto.dart';
 import '../agentkit/capability_dto.dart';
 import '../agentkit/common_dto.dart';
 import '../agentkit/messages_dto.dart';
@@ -823,57 +822,11 @@ class AgentKitModule {
   final Map<String, Set<_ActiveAgentKitChat>> _activeChats =
       <String, Set<_ActiveAgentKitChat>>{};
 
-  /// Retrieves an agent by agentId.
-  Future<Map<String, dynamic>> getAgent({required String agentId}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._agentKit.getAgent(
-        bearerToken: bearerToken,
-        agentId: agentId,
-      ),
-    );
-  }
-
-  /// Creates an agent with the provided payload.
-  Future<Map<String, dynamic>> createAgent({required Agent agent}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._agentKit.createAgent(bearerToken: bearerToken, agent: agent),
-    );
-  }
-
-  /// Updates an agent by agentId.
-  Future<Map<String, dynamic>> updateAgent({
-    required String agentId,
-    required Agent agent,
-  }) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._agentKit.updateAgent(
-        bearerToken: bearerToken,
-        agentId: agentId,
-        agent: agent,
-      ),
-    );
-  }
-
-  /// Deletes an agent by agentId.
-  Future<Map<String, dynamic>> deleteAgent({required String agentId}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._agentKit.deleteAgent(
-        bearerToken: bearerToken,
-        agentId: agentId,
-      ),
-    );
-  }
-
   /// Initializes a SessionAgent session via AgentKit.
-  Future<Map<String, dynamic>> initSession({
-    String? agentId,
-    Capability? capability,
-  }) {
+  Future<Map<String, dynamic>> initSession({Capability? capability}) {
     return _client._withAppAuthRetry(
       (bearerToken) => _client._agentKit.initSession(
         bearerToken: bearerToken,
-        agentId: agentId,
         capability: capability,
       ),
     );
@@ -1331,9 +1284,7 @@ class AuthKitModule {
   /// 可在发起登录前调用，以便提前提示用户安装 / 启动 / 解锁 AgentOS Desktop。
   Future<bool> isAuthorizationReady() {
     return _client._withAppAuthRetry(
-      (bearerToken) => _client._authKitClient.isReady(
-        bearerToken: bearerToken,
-      ),
+      (bearerToken) => _client._authKitClient.isReady(bearerToken: bearerToken),
     );
   }
 }
@@ -1345,8 +1296,7 @@ class DiscoveryKitModule {
 
   Future<List<PeerDevice>> getPeers() {
     return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._discoveryKit.getPeers(bearerToken: bearerToken),
+      (bearerToken) => _client._discoveryKit.getPeers(bearerToken: bearerToken),
     );
   }
 
@@ -1359,8 +1309,7 @@ class DiscoveryKitModule {
 
   Future<SelfInfo> getSelf() {
     return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._discoveryKit.getSelf(bearerToken: bearerToken),
+      (bearerToken) => _client._discoveryKit.getSelf(bearerToken: bearerToken),
     );
   }
 
@@ -1411,9 +1360,7 @@ class TransferKitModule {
     );
   }
 
-  Future<Stream<TransferSession>> streamProgress({
-    required String transferId,
-  }) {
+  Future<Stream<TransferSession>> streamProgress({required String transferId}) {
     return _client._withAppAuthRetry(
       (bearerToken) => _client._transferKit.streamProgress(
         bearerToken: bearerToken,
@@ -1462,8 +1409,7 @@ class TransferKitModule {
 
   Future<PolicyResponse> getPolicy() {
     return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._transferKit.getPolicy(bearerToken: bearerToken),
+      (bearerToken) => _client._transferKit.getPolicy(bearerToken: bearerToken),
     );
   }
 

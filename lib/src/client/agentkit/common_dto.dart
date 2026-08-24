@@ -14,6 +14,7 @@ class AgentRoleType {
   static const String system = "developer"; // system prompt
   static const String user = "user"; // user
   static const String agent = "agent"; // agent
+  static const String subAgent = "subAgent"; // sub-agent
   static const String llm = "assistant"; // llm
   static const String tool = "tool"; // external tools
   static const String client = "client"; // external caller
@@ -26,7 +27,6 @@ class AgentMessageType {
   static const String toolCalls = "toolCalls"; //List<FunctionCall>
   static const String toolReturn = "toolReturn"; //ToolReturn
   static const String contentList = "contentList"; //List<Content>
-  static const String reflection = "reflection"; //Reflection
   static const String taskStatus = "taskStatus"; //TaskStatus
   static const String functionCall = "functionCall"; //FunctionCall
   static const String reasoning = "reasoning"; //String

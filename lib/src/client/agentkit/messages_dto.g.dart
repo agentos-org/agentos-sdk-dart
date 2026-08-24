@@ -19,7 +19,6 @@ Map<String, dynamic> _$AgentEventToJson(AgentEvent instance) =>
 
 AgentMessage _$AgentMessageFromJson(Map<String, dynamic> json) => AgentMessage(
   sessionId: json['sessionId'] as String,
-  agentId: json['agentId'] as String?,
   originalTaskId: _readOriginalTaskId(json, 'originalTaskId') as String?,
   parentTaskId: json['parentTaskId'] as String?,
   taskId: json['taskId'] as String,
@@ -37,7 +36,6 @@ AgentMessage _$AgentMessageFromJson(Map<String, dynamic> json) => AgentMessage(
 Map<String, dynamic> _$AgentMessageToJson(AgentMessage instance) =>
     <String, dynamic>{
       'sessionId': instance.sessionId,
-      'agentId': ?instance.agentId,
       'originalTaskId': instance.originalTaskId,
       'parentTaskId': ?instance.parentTaskId,
       'taskId': instance.taskId,
@@ -53,7 +51,6 @@ Map<String, dynamic> _$AgentMessageToJson(AgentMessage instance) =>
 AgentMessageChunk _$AgentMessageChunkFromJson(Map<String, dynamic> json) =>
     AgentMessageChunk(
       sessionId: json['sessionId'] as String,
-      agentId: json['agentId'] as String?,
       parentTaskId: json['parentTaskId'] as String?,
       taskId: json['taskId'] as String,
       role: json['role'] as String,
@@ -66,7 +63,6 @@ AgentMessageChunk _$AgentMessageChunkFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$AgentMessageChunkToJson(AgentMessageChunk instance) =>
     <String, dynamic>{
       'sessionId': instance.sessionId,
-      'agentId': ?instance.agentId,
       'parentTaskId': ?instance.parentTaskId,
       'taskId': instance.taskId,
       'role': instance.role,
@@ -198,7 +194,6 @@ Map<String, dynamic> _$EventToolReturnToJson(EventToolReturn instance) =>
 
 Dispatch _$DispatchFromJson(Map<String, dynamic> json) => Dispatch(
   dispatchId: json['dispatchId'] as String,
-  agentId: json['agentId'] as String,
   name: json['name'] as String,
   content: (json['content'] as List<dynamic>)
       .map((e) => Content.fromJson(e as Map<String, dynamic>))
@@ -207,7 +202,6 @@ Dispatch _$DispatchFromJson(Map<String, dynamic> json) => Dispatch(
 
 Map<String, dynamic> _$DispatchToJson(Dispatch instance) => <String, dynamic>{
   'dispatchId': instance.dispatchId,
-  'agentId': instance.agentId,
   'name': instance.name,
   'content': instance.content.map((e) => e.toJson()).toList(),
 };
@@ -222,55 +216,5 @@ Map<String, dynamic> _$TaskStatusToJson(TaskStatus instance) =>
     <String, dynamic>{
       'status': instance.status,
       'taskId': ?instance.taskId,
-      'description': ?instance.description,
-    };
-
-Reflection _$ReflectionFromJson(Map<String, dynamic> json) => Reflection(
-  isPass: json['isPass'] as bool,
-  messageScore: MessageScore.fromJson(
-    json['messageScore'] as Map<String, dynamic>,
-  ),
-  passScore: (json['passScore'] as num).toInt(),
-  count: (json['count'] as num).toInt(),
-  maxCount: (json['maxCount'] as num).toInt(),
-);
-
-Map<String, dynamic> _$ReflectionToJson(Reflection instance) =>
-    <String, dynamic>{
-      'isPass': instance.isPass,
-      'messageScore': instance.messageScore.toJson(),
-      'passScore': instance.passScore,
-      'count': instance.count,
-      'maxCount': instance.maxCount,
-    };
-
-MessageScore _$MessageScoreFromJson(Map<String, dynamic> json) => MessageScore(
-  content: (json['content'] as List<dynamic>)
-      .map((e) => Content.fromJson(e as Map<String, dynamic>))
-      .toList(),
-  messageType: json['messageType'] as String,
-  message: json['message'] as String,
-  reflectScoreList: (json['reflectScoreList'] as List<dynamic>)
-      .map((e) => ReflectScore.fromJson(e as Map<String, dynamic>))
-      .toList(),
-);
-
-Map<String, dynamic> _$MessageScoreToJson(
-  MessageScore instance,
-) => <String, dynamic>{
-  'content': instance.content.map((e) => e.toJson()).toList(),
-  'messageType': instance.messageType,
-  'message': instance.message,
-  'reflectScoreList': instance.reflectScoreList.map((e) => e.toJson()).toList(),
-};
-
-ReflectScore _$ReflectScoreFromJson(Map<String, dynamic> json) => ReflectScore(
-  score: (json['score'] as num).toInt(),
-  description: json['description'] as String?,
-);
-
-Map<String, dynamic> _$ReflectScoreToJson(ReflectScore instance) =>
-    <String, dynamic>{
-      'score': instance.score,
       'description': ?instance.description,
     };

@@ -152,7 +152,7 @@ void main() {
       final payload = config.toJson();
       expect(payload['temperature'], equals(0.66));
       expect(payload['supportsToolCall'], isTrue);
-      expect(payload['supportsReasoning'], isTrue);
+      expect(payload['supportsReasoning'], isFalse);
       expect(payload.containsKey('modelId'), isFalse);
       expect(payload.containsKey('baseUrl'), isFalse);
       expect(payload.containsKey('apiKey'), isFalse);
@@ -616,32 +616,30 @@ void main() {
   });
 
   group('AgentKitClient', () {
-    test('creates agent, initializes session, and chats simple', () async {
+    test('initializes an inline-agent session and chats simple', () async {
+      final interceptor = _AgentKitInterceptor();
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
-        ..interceptors.add(_AgentKitInterceptor());
+        ..interceptors.add(interceptor);
       final client = AgentKitClient(apiClient: ApiClient(dio: dio));
-
-      final agent = await client.createAgent(
-        bearerToken: 'token-123',
-        agent: Agent(
-          name: 'demo-agent',
-          capability: Capability(
-            systemPrompt: 'demo',
-            llmConfig: LLMConfig(
-              baseUrl: 'http://llm.local',
-              apiKey: 'sk-test',
-              model: 'demo-model',
-            ),
-          ),
-        ),
-      );
-      expect(agent['agentId'], equals('agent-abc'));
 
       final session = await client.initSession(
         bearerToken: 'token-123',
-        agentId: 'agent-abc',
+        capability: Capability(
+          systemPrompt: 'demo',
+          subAgentList: <Agent>[
+            Agent(
+              name: 'researcher',
+              capability: Capability(systemPrompt: 'research'),
+            ),
+          ],
+        ),
       );
       expect(session['sessionId'], equals('sess-123'));
+      expect(interceptor.initSessionQuery, isEmpty);
+      expect(
+        (interceptor.initSessionBody?['subAgentList'] as List<dynamic>).single,
+        containsPair('name', 'researcher'),
+      );
 
       final reply = await client.chatSimple(
         bearerToken: 'token-123',
@@ -2071,6 +2069,8 @@ class _ThrowingAgentMessageHandler extends _LifecycleAgentMessageHandler {
 }
 
 class _AgentKitInterceptor extends Interceptor {
+  Map<String, dynamic>? initSessionBody;
+  Map<String, dynamic> initSessionQuery = <String, dynamic>{};
   int? historyPage;
   int? historyPageSize;
   Map<String, dynamic>? historySummaryQuery;
@@ -2106,18 +2106,9 @@ class _AgentKitInterceptor extends Interceptor {
       return;
     }
 
-    if (options.path == '/agentkit/agent/create') {
-      handler.resolve(
-        Response(
-          requestOptions: options,
-          statusCode: 200,
-          data: <String, String>{'agentId': 'agent-abc'},
-        ),
-      );
-      return;
-    }
-
     if (options.path == '/agentkit/initSession') {
+      initSessionBody = Map<String, dynamic>.from(options.data as Map);
+      initSessionQuery = Map<String, dynamic>.from(options.queryParameters);
       handler.resolve(
         Response(
           requestOptions: options,

@@ -27,7 +27,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.7.0
+  agentos_sdk: ^0.8.0
 ```
 
 Then run:
@@ -318,11 +318,7 @@ For end-to-end local testing, see
 
 | Method | Parameters | Description |
 | --- | --- | --- |
-| `getAgent({required String agentId})` | `agentId` | Retrieves an agent by `agentId`. |
-| `createAgent({required Agent agent})` | `agent` | Creates an agent with the provided payload. |
-| `updateAgent({required String agentId, required Agent agent})` | `agentId`, `agent` | Updates an agent by `agentId`. |
-| `deleteAgent({required String agentId})` | `agentId` | Deletes an agent by `agentId`. |
-| `initSession({String? agentId, Capability? capability})` | `agentId`, `capability` | Initializes a SessionAgent session. |
+| `initSession({Capability? capability})` | `capability` | Initializes a SessionAgent session, optionally with recursively nested inline agents. |
 | `initSimple({required SimpleCapability simpleCapability})` | `simpleCapability` | Initializes a SimpleAgent session. |
 | `chat(Session session, UserTask userTask, AgentMessageHandler agentMessageHandler)` | `session`, `userTask`, `agentMessageHandler` | Starts a SessionAgent task and delivers SSE events to the handler callbacks. |
 | `chatSimple({required String sessionId, required UserTask userTask})` | `sessionId`, `userTask` | Executes a SimpleAgent request and returns a one-time response. |
@@ -437,8 +433,17 @@ and defaults to the server.
 | `maxTaskDurationSeconds` | Maximum duration of one tool-based task, in seconds. | `300` |
 
 ```dart
+const plannerSkillMarkdown = '''
+---
+name: planner
+description: Break work into clear steps.
+---
+Plan the task before execution.
+''';
+
 final capability = Capability(
   systemPrompt: 'You are an assistant',
+  skills: <String>[plannerSkillMarkdown],
   maxLlmRequests: 32,
   maxToolRounds: 8,
   maxToolCalls: 20,
@@ -446,11 +451,14 @@ final capability = Capability(
   maxTaskDurationSeconds: 120,
 );
 
-await sdk.agentkit.initSession(capability: capability);
-
-final agent = Agent(name: 'limited-agent', capability: capability);
-await sdk.agentkit.createAgent(agent: agent);
-await sdk.agentkit.updateAgent(agentId: 'agent-id', agent: agent);
+await sdk.agentkit.initSession(
+  capability: Capability(
+    systemPrompt: 'Coordinate the team',
+    subAgentList: <Agent>[
+      Agent(name: 'limited-agent', capability: capability),
+    ],
+  ),
+);
 ```
 
 - `AgentMessage.completions` supports `limits`:

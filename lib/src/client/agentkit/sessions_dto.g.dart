@@ -13,19 +13,6 @@ Map<String, dynamic> _$SessionToJson(Session instance) => <String, dynamic>{
   'sessionId': instance.sessionId,
 };
 
-SessionName _$SessionNameFromJson(Map<String, dynamic> json) => SessionName(
-  sessionId: json['sessionId'] as String,
-  name: json['name'] as String?,
-  description: json['description'] as String?,
-);
-
-Map<String, dynamic> _$SessionNameToJson(SessionName instance) =>
-    <String, dynamic>{
-      'sessionId': instance.sessionId,
-      'name': ?instance.name,
-      'description': ?instance.description,
-    };
-
 SessionTask _$SessionTaskFromJson(Map<String, dynamic> json) => SessionTask(
   sessionId: json['sessionId'] as String,
   taskId: json['taskId'] as String?,

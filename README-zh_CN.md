@@ -25,7 +25,7 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.7.0
+  agentos_sdk: ^0.8.0
 ```
 
 然后执行：
@@ -312,11 +312,7 @@ if (result.isFailure) {
 
 | 方法 | 参数 | 说明 |
 | --- | --- | --- |
-| `getAgent({required String agentId})` | `agentId` | 通过 `agentId` 获取 agent。 |
-| `createAgent({required Agent agent})` | `agent` | 使用给定负载创建 agent。 |
-| `updateAgent({required String agentId, required Agent agent})` | `agentId`, `agent` | 按 `agentId` 更新 agent。 |
-| `deleteAgent({required String agentId})` | `agentId` | 按 `agentId` 删除 agent。 |
-| `initSession({String? agentId, Capability? capability})` | `agentId`, `capability` | 初始化 SessionAgent 会话。 |
+| `initSession({Capability? capability})` | `capability` | 初始化 SessionAgent 会话，可携带递归嵌套的内联子 Agent。 |
 | `initSimple({required SimpleCapability simpleCapability})` | `simpleCapability` | 初始化 SimpleAgent 会话。 |
 | `chat(Session session, UserTask userTask, AgentMessageHandler agentMessageHandler)` | `session`, `userTask`, `agentMessageHandler` | 启动 SessionAgent 任务，并通过回调处理 SSE 事件。 |
 | `chatSimple({required String sessionId, required UserTask userTask})` | `sessionId`, `userTask` | 执行 SimpleAgent 请求并返回一次性响应。 |
@@ -431,8 +427,17 @@ await sdk.dispose();
 | `maxTaskDurationSeconds` | 单个工具型任务最长执行秒数。 | `300` |
 
 ```dart
+const plannerSkillMarkdown = '''
+---
+name: planner
+description: 将工作拆分成清晰步骤。
+---
+执行前先规划任务。
+''';
+
 final capability = Capability(
   systemPrompt: '你是一个助手',
+  skills: <String>[plannerSkillMarkdown],
   maxLlmRequests: 32,
   maxToolRounds: 8,
   maxToolCalls: 20,
@@ -440,11 +445,14 @@ final capability = Capability(
   maxTaskDurationSeconds: 120,
 );
 
-await sdk.agentkit.initSession(capability: capability);
-
-final agent = Agent(name: 'limited-agent', capability: capability);
-await sdk.agentkit.createAgent(agent: agent);
-await sdk.agentkit.updateAgent(agentId: 'agent-id', agent: agent);
+await sdk.agentkit.initSession(
+  capability: Capability(
+    systemPrompt: '协调团队',
+    subAgentList: <Agent>[
+      Agent(name: 'limited-agent', capability: capability),
+    ],
+  ),
+);
 ```
 
 - `AgentMessage.completions` 支持 `limits`：

@@ -25,7 +25,6 @@ class AgentEvent {
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class AgentMessage {
   String sessionId;
-  String? agentId;
   @JsonKey(readValue: _readOriginalTaskId)
   String originalTaskId;
   String? parentTaskId;
@@ -43,7 +42,6 @@ class AgentMessage {
 
   AgentMessage({
     required this.sessionId,
-    this.agentId,
     String? originalTaskId,
     this.parentTaskId,
     required this.taskId,
@@ -65,7 +63,6 @@ class AgentMessage {
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class AgentMessageChunk {
   String sessionId;
-  String? agentId;
   String? parentTaskId;
   String taskId;
   String role;
@@ -76,7 +73,6 @@ class AgentMessageChunk {
 
   AgentMessageChunk({
     required this.sessionId,
-    this.agentId,
     this.parentTaskId,
     required this.taskId,
     required this.role,
@@ -227,13 +223,11 @@ class EventToolReturn {
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class Dispatch {
   String dispatchId;
-  String agentId;
   String name;
   List<Content> content;
 
   Dispatch({
     required this.dispatchId,
-    required this.agentId,
     required this.name,
     required this.content,
   });
@@ -256,58 +250,4 @@ class TaskStatus {
       _$TaskStatusFromJson(json);
 
   Map<String, dynamic> toJson() => _$TaskStatusToJson(this);
-}
-
-@JsonSerializable(explicitToJson: true, includeIfNull: false)
-class Reflection {
-  final bool isPass;
-  final MessageScore messageScore;
-  final int passScore;
-  final int count;
-  final int maxCount;
-
-  Reflection({
-    required this.isPass,
-    required this.messageScore,
-    required this.passScore,
-    required this.count,
-    required this.maxCount,
-  });
-
-  factory Reflection.fromJson(Map<String, dynamic> json) =>
-      _$ReflectionFromJson(json);
-
-  Map<String, dynamic> toJson() => _$ReflectionToJson(this);
-}
-
-@JsonSerializable(explicitToJson: true, includeIfNull: false)
-class MessageScore {
-  List<Content> content;
-  String
-  messageType; // AgentMessageType.text | AgentMessageType.imageUrl | AgentMessageType.dispatch | AgentMessageType.toolCalls | AgentMessageType.toolReturn | AgentMessageType.contentList | AgentMessageType.reflection | AgentMessageType.taskStatus | AgentMessageType.functionCall | AgentMessageType.reasoningContent | AgentMessageType.planning
-  String message;
-  List<ReflectScore> reflectScoreList;
-  MessageScore({
-    required this.content,
-    required this.messageType,
-    required this.message,
-    required this.reflectScoreList,
-  });
-
-  factory MessageScore.fromJson(Map<String, dynamic> json) =>
-      _$MessageScoreFromJson(json);
-
-  Map<String, dynamic> toJson() => _$MessageScoreToJson(this);
-}
-
-@JsonSerializable(explicitToJson: true, includeIfNull: false)
-class ReflectScore {
-  int score;
-  String? description;
-  ReflectScore({required this.score, this.description});
-
-  factory ReflectScore.fromJson(Map<String, dynamic> json) =>
-      _$ReflectScoreFromJson(json);
-
-  Map<String, dynamic> toJson() => _$ReflectScoreToJson(this);
 }
