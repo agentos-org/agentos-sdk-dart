@@ -30,7 +30,6 @@ CronTaskCreateRequest _$CronTaskCreateRequestFromJson(
   name: json['name'] as String,
   schedule: json['schedule'] as String,
   spec: CronSpec.fromJson(json['spec'] as Map<String, dynamic>),
-  userId: json['userId'] as String?,
   sessionId: json['sessionId'] as String?,
   timezone: json['timezone'] as String?,
   concurrency:
@@ -45,7 +44,6 @@ Map<String, dynamic> _$CronTaskCreateRequestToJson(
   'name': instance.name,
   'schedule': instance.schedule,
   'spec': instance.spec.toJson(),
-  'userId': ?instance.userId,
   'sessionId': ?instance.sessionId,
   'timezone': ?instance.timezone,
   'concurrency': _$CronTaskConcurrencyEnumMap[instance.concurrency]!,
@@ -53,7 +51,9 @@ Map<String, dynamic> _$CronTaskCreateRequestToJson(
 };
 
 const _$CronTaskConcurrencyEnumMap = {
+  CronTaskConcurrency.allow: 'allow',
   CronTaskConcurrency.skipIfRunning: 'skipIfRunning',
+  CronTaskConcurrency.replace: 'replace',
 };
 
 CronTaskUpdateRequest _$CronTaskUpdateRequestFromJson(
@@ -131,7 +131,6 @@ CronTask _$CronTaskFromJson(Map<String, dynamic> json) => CronTask(
   name: json['name'] as String,
   schedule: json['schedule'] as String,
   source: json['source'] as String,
-  userId: json['userId'] as String?,
   sessionId: json['sessionId'] as String?,
   timezone: json['timezone'] as String?,
   enabled: json['enabled'] as bool,
@@ -153,7 +152,6 @@ Map<String, dynamic> _$CronTaskToJson(CronTask instance) => <String, dynamic>{
   'name': instance.name,
   'schedule': instance.schedule,
   'source': instance.source,
-  'userId': ?instance.userId,
   'sessionId': ?instance.sessionId,
   'timezone': ?instance.timezone,
   'enabled': instance.enabled,

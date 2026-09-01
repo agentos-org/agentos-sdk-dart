@@ -1124,6 +1124,23 @@ void main() {
   });
 
   group('CronKitClient', () {
+    test('serializes all CronKit concurrency policies', () {
+      final spec = CronSpec(
+        systemPrompt: 'system',
+        content: <Content>[Content(type: ContentType.text, message: 'prompt')],
+      );
+
+      for (final policy in CronTaskConcurrency.values) {
+        final request = CronTaskCreateRequest(
+          name: 'task',
+          schedule: '* * * * *',
+          spec: spec,
+          concurrency: policy,
+        );
+        expect(request.toJson()['concurrency'], equals(policy.name));
+      }
+    });
+
     test('manages cron tasks and runs through sdk module', () async {
       final dio = Dio(BaseOptions(baseUrl: 'http://fake.local'))
         ..interceptors.add(_CronKitInterceptor());
@@ -1139,6 +1156,7 @@ void main() {
         request: CronTaskCreateRequest(
           name: 'daily-report',
           schedule: '0 9 * * *',
+          sessionId: 'session-cron-1',
           timezone: 'Asia/Shanghai',
           spec: CronSpec(
             systemPrompt: 'system',
@@ -1150,6 +1168,9 @@ void main() {
         ),
       );
       expect(created.cronId, equals('cron-1'));
+      expect(created.sessionId, equals('session-1'));
+      expect(created.timezone, equals('Asia/Shanghai'));
+      expect(created.toJson().containsKey('userId'), isFalse);
       expect(created.spec.content.single.message, equals('prompt'));
       expect(created.spec.modelId, equals('gpt-4o'));
       expect(created.spec.modelName, equals('gpt-4o'));
@@ -2401,7 +2422,9 @@ class _CronKitInterceptor extends Interceptor {
       final payload = options.data as Map<String, dynamic>;
       expect(payload['name'], equals('daily-report'));
       expect(payload['schedule'], equals('0 9 * * *'));
+      expect(payload['sessionId'], equals('session-cron-1'));
       expect(payload['timezone'], equals('Asia/Shanghai'));
+      expect(payload.containsKey('userId'), isFalse);
       expect(payload['spec']['systemPrompt'], equals('system'));
       expect(payload['spec']['content'], isA<List<dynamic>>());
       expect(payload['spec']['modelId'], equals('gpt-4o'));
@@ -2630,7 +2653,6 @@ class _CronKitInterceptor extends Interceptor {
     'name': 'daily-report',
     'schedule': '0 9 * * *',
     'source': 'appkit|owner=com.demo.app|group=com.demo.group',
-    'userId': 'user-1',
     'sessionId': 'session-1',
     'timezone': 'Asia/Shanghai',
     'enabled': true,

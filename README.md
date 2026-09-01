@@ -209,18 +209,34 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `listRunMessages({required String runId, int? offset, int? limit})` | `runId`, `offset`, `limit` | Lists persisted `AgentMessage` records for a cron run. |
 | `deleteRun({required String runId})` | `runId` | Deletes one cron run and its persisted messages. |
 
-`CronTaskCreateRequest.spec` and `CronTask.spec` use the CronKit schema:
+Cron tasks can reuse an existing LiteAgent session and evaluate their schedule
+in an IANA timezone:
 
 ```dart
-CronSpec(
-  systemPrompt: 'You are a scheduled agent.',
-  content: <Content>[
-    Content(type: ContentType.text, message: 'Generate the daily summary.'),
-  ],
-  modelId: 'gpt-4o', // optional request input
-)
+await sdk.cronkit.createTask(
+  request: CronTaskCreateRequest(
+    name: 'Daily summary',
+    schedule: '0 9 * * *',
+    sessionId: 'existing-liteagent-session',
+    timezone: 'Asia/Shanghai',
+    concurrency: CronTaskConcurrency.skipIfRunning,
+    spec: CronSpec(
+      systemPrompt: 'You are a scheduled agent.',
+      content: <Content>[
+        Content(type: ContentType.text, message: 'Generate the daily summary.'),
+      ],
+      modelId: 'gpt-4o',
+    ),
+  ),
+);
 ```
 
+- `sessionId` is optional. Scheduled runs reuse it when provided; otherwise the
+  kernel initializes a LiteAgent session when the task runs.
+- `timezone` accepts an IANA timezone such as `Asia/Shanghai`. Cron evaluation
+  is timezone-aware, while `lastRunAt`, `nextRunAt`, and run timestamps are
+  serialized in UTC.
+- `CronTaskConcurrency` supports `allow`, `skipIfRunning`, and `replace`.
 - `modelId` is an optional request field used by CronKit to resolve the backing model.
 - `modelName` is an optional response field returned in `CronTask.spec` after resolution.
 

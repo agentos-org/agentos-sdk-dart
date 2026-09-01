@@ -8,6 +8,10 @@
   align the default `supportsReasoning` value with LiteAgent 0.4.
 - feat: support Agent Skills markdown documents and extended provider-specific
   LLM configuration fields in AgentKit capabilities.
+- breaking: align CronKit with the updated kernel contract by removing task
+  `userId`.
+- feat: expose all CronKit concurrency policies and document reusable LiteAgent
+  sessions with IANA timezone scheduling.
 
 ## 0.7.0
 

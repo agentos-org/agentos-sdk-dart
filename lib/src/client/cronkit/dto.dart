@@ -5,7 +5,7 @@ import '../shared/dto.dart';
 
 part 'dto.g.dart';
 
-enum CronTaskConcurrency { skipIfRunning }
+enum CronTaskConcurrency { allow, skipIfRunning, replace }
 
 @JsonSerializable(explicitToJson: true, includeIfNull: false)
 class CronSpec {
@@ -34,7 +34,6 @@ class CronTaskCreateRequest {
   String name;
   String schedule;
   CronSpec spec;
-  String? userId;
   String? sessionId;
   String? timezone;
   CronTaskConcurrency concurrency;
@@ -44,7 +43,6 @@ class CronTaskCreateRequest {
     required this.name,
     required this.schedule,
     required this.spec,
-    this.userId,
     this.sessionId,
     this.timezone,
     this.concurrency = CronTaskConcurrency.skipIfRunning,
@@ -139,7 +137,6 @@ class CronTask {
   String name;
   String schedule;
   String source;
-  String? userId;
   String? sessionId;
   String? timezone;
   bool enabled;
@@ -156,7 +153,6 @@ class CronTask {
     required this.name,
     required this.schedule,
     required this.source,
-    this.userId,
     this.sessionId,
     this.timezone,
     required this.enabled,
