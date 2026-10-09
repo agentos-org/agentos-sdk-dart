@@ -1,3 +1,9 @@
+## 0.9.0
+
+- feat: add HarnessKit runtime, thread, run, command, result, and operational
+  snapshot APIs with AppKit token handling and resumable SSE events.
+- feat: return rejected HarnessKit command receipts from HTTP 400 responses.
+
 ## 0.8.0
 
 - breaking: align AgentKit with LiteAgent 0.4 by removing persisted agent

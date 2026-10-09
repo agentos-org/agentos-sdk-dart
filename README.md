@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, AppKit,
-AuthKit, CronKit, DiscoveryKit, RagKit, ModelKit (chat / embedding / asr / tts),
+AuthKit, CronKit, DiscoveryKit, HarnessKit, RagKit, ModelKit (chat / embedding / asr / tts),
 ToolKit, and TransferKit endpoints. Use the unified `AgentOSSDK` to avoid managing tokens manually.
 
 ## Features
@@ -10,6 +10,7 @@ ToolKit, and TransferKit endpoints. Use the unified `AgentOSSDK` to avoid managi
 - AgentKit API: agent CRUD, session init,
   chat stream/simple, history, stop/clear, callbacks)
 - AppKit API: bundle registration and SSE subscription
+- HarnessKit API: runtime engine, threads, runs, commands, and resumable SSE events
 - AuthKit API: deliver third-party login requests to local AgentOS Desktop
 - CronKit API: cron task CRUD, run history, and scheduler control
 - DiscoveryKit API: nearby device discovery, peer streaming, registration
@@ -27,7 +28,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.8.0
+  agentos_sdk: ^0.9.0
 ```
 
 Then run:
@@ -176,6 +177,7 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `authkit` | `AuthKitModule` | Delivers third-party login authorization to local Desktop. |
 | `cronkit` | `CronKitModule` | CronKit task management endpoints with internal token handling. |
 | `discoverykit` | `DiscoveryKitModule` | DiscoveryKit nearby device discovery endpoints. |
+| `harnesskit` | `HarnessKitModule` | Harness runtime, thread, run, command, and event endpoints. |
 | `ragkit` | `RagKitModule` | RagKit knowledge-base endpoints with internal token handling. |
 | `modelkit` | `ModelKitModule` | ModelKit task-oriented model listing and chat / embedding / asr / tts clients. |
 | `toolkit` | `ToolKitModule` | ToolKit discovery endpoints and tool lifecycle event subscription. |
@@ -329,6 +331,27 @@ For end-to-end local testing, see
 | `getHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | Lists transfer history records. |
 | `deleteHistory({required String recordId, String? deviceId, String? userId})` | `recordId`, `deviceId`, `userId` | Deletes a specific transfer history record. |
 | `clearHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | Clears all transfer history records. |
+
+### HarnessKitModule (`sdk.harnesskit`)
+
+After `agentos.registerBundle`, use HarnessKit through the authenticated Gateway.
+Apps that need their own managed runtime must declare `harnessKit` in their
+installable process App manifest.
+
+| Method | Parameters | Description |
+| --- | --- | --- |
+| `health()` | none | Checks whether the Harness runtime is reachable. |
+| `getRuntime()` / `switchEngine({required String engine})` | `engine` | Reads or changes the active runtime engine. |
+| `listThreads()` / `getThread({required String threadId})` | `threadId` | Lists saved conversations or reads one snapshot. |
+| `renameThread({required String threadId, required String title})` / `deleteThread({required String threadId})` | `threadId`, `title` | Renames or deletes a saved conversation. |
+| `startRun({required String threadId, required HarnessKitRunRequest request})` | `threadId`, `request` | Starts a run and returns its `runId`. |
+| `submitCommand({required String threadId, required HarnessKitCommand command})` | `threadId`, `command` | Submits a command and returns its receipt, including rejected receipts returned with HTTP 400. |
+| `events({required String threadId, HarnessKitEventsOptions options})` | `threadId`, `afterSequence`, `runId` | Opens an SSE stream that can resume from a sequence number. Cancel the stream subscription to close it. |
+| `getRunResult({required String runId})` / `getOperationalSnapshot()` | `runId` | Reads a completed run result or runtime status snapshot. |
+
+The request and response models are exported from the package entry point. See
+[`example/agentos_sdk_dart_example.dart`](example/agentos_sdk_dart_example.dart)
+for a minimal runtime and thread listing example.
 
 ### AgentKitModule (`sdk.agentkit`)
 
@@ -564,12 +587,12 @@ API does not expose the underlying Dart stream subscription.
 
 ## Notes
 
-- Call `agentos.registerBundle` before using `agentkit`/`agentos`/`authkit`/`discoverykit`/`transferkit` APIs that
+- Call `agentos.registerBundle` before using `agentkit`/`agentos`/`authkit`/`discoverykit`/`transferkit`/`harnesskit` APIs that
   require a token.
 - `authkit.openAuthorization` only delivers the consent UI locally. Treat your
   backend's login transaction status as the source of truth for login success.
 - `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `authkit`,
-  `cronkit`, `discoverykit`, `ragkit`, `modelkit`, `toolkit`, `transferkit`)
+  `cronkit`, `discoverykit`, `harnesskit`, `ragkit`, `modelkit`, `toolkit`, `transferkit`)
   for clearer separation of API areas.
 - AgentKit endpoints are exposed under `/agentkit/*`.
 - `sdk.modelkit.chat` targets `/modelkit/chat/...`.

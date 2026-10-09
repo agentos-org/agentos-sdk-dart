@@ -38,6 +38,15 @@ Future<void> main(List<String> args) async {
     );
   }
 
+  if (args.contains('--harness')) {
+    final runtime = await sdk.harnesskit.getRuntime();
+    print('Harness engine: ${runtime.engine} (${runtime.status})');
+    final threads = await sdk.harnesskit.listThreads();
+    print('Harness threads: ${threads.length}');
+    await sdk.dispose();
+    return;
+  }
+
   if (args.length >= 2 && args.first == '--history') {
     final messages = await sdk.agentkit.history(
       sessionId: args[1],

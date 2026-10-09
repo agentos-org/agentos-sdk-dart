@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 一个轻量的 Dart SDK，用于访问 AgentOS API，支持 Root、AgentKit、AppKit、
-AuthKit、CronKit、DiscoveryKit、RagKit、ModelKit（chat / embedding / asr / tts）、
+AuthKit、CronKit、DiscoveryKit、HarnessKit、RagKit、ModelKit（chat / embedding / asr / tts）、
 ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手动管理 token。
 
 ## 功能
@@ -10,6 +10,7 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 - AgentKit API：Agent CRUD、会话初始化、
   chat 流式/单次、历史记录、stop/clear、回调
 - AppKit API：bundle 注册与 SSE 订阅
+- HarnessKit API：runtime 引擎、thread、run、command 与可续传 SSE 事件
 - AuthKit API：将第三方登录授权请求投递到本机 AgentOS Desktop
 - CronKit API：定时任务 CRUD、运行记录与调度器控制
 - DiscoveryKit API：附近设备发现、设备流、注册/注销
@@ -25,7 +26,7 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.8.0
+  agentos_sdk: ^0.9.0
 ```
 
 然后执行：
@@ -174,6 +175,7 @@ AgentOSSDK({
 | `authkit` | `AuthKitModule` | 将第三方登录授权投递到本机 Desktop。 |
 | `cronkit` | `CronKitModule` | CronKit 相关接口，内部处理 token。 |
 | `discoverykit` | `DiscoveryKitModule` | DiscoveryKit 附近设备发现接口。 |
+| `harnesskit` | `HarnessKitModule` | Harness runtime、thread、run、command 和事件接口。 |
 | `ragkit` | `RagKitModule` | RagKit 知识库接口，内部处理 token。 |
 | `modelkit` | `ModelKitModule` | ModelKit 基于任务的模型列表与 chat / embedding / asr / tts 客户端。 |
 | `toolkit` | `ToolKitModule` | ToolKit 发现接口与 tool 生命周期事件订阅。 |
@@ -319,6 +321,24 @@ if (result.isFailure) {
 | `getHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | 获取传输历史列表。 |
 | `deleteHistory({required String recordId, String? deviceId, String? userId})` | `recordId`, `deviceId`, `userId` | 删除指定传输历史记录。 |
 | `clearHistory({String? deviceId, String? userId})` | `deviceId`, `userId` | 清空所有传输历史。 |
+
+### HarnessKitModule（`sdk.harnesskit`）
+
+先调用 `agentos.registerBundle` 注册 App，再使用 HarnessKit。需要独立 runtime 的安装型进程 App 还需在 manifest 中声明 `harnessKit`。
+
+| 方法 | 参数 | 说明 |
+| --- | --- | --- |
+| `health()` | 无 | 检查 Harness runtime 是否可用。 |
+| `getRuntime()` / `switchEngine({required String engine})` | `engine` | 查询或切换当前 runtime 引擎。 |
+| `listThreads()` / `getThread({required String threadId})` | `threadId` | 列出会话或读取会话快照。 |
+| `renameThread({required String threadId, required String title})` / `deleteThread({required String threadId})` | `threadId`, `title` | 重命名或删除会话。 |
+| `startRun({required String threadId, required HarnessKitRunRequest request})` | `threadId`, `request` | 启动 run 并返回其 ID。 |
+| `submitCommand({required String threadId, required HarnessKitCommand command})` | `threadId`, `command` | 提交 command 并返回回执；HTTP 400 的拒绝回执也会正常返回。 |
+| `events({required String threadId, HarnessKitEventsOptions options})` | `threadId`, `afterSequence`, `runId` | 打开 SSE 事件流，可按序号续传；取消订阅即可关闭连接。 |
+| `getRunResult({required String runId})` / `getOperationalSnapshot()` | `runId` | 查询 run 结果或 runtime 状态快照。 |
+
+请求和响应 DTO 可从 SDK 公开入口导入。可运行示例：
+`dart run example/agentos_sdk_dart_example.dart --harness`。
 
 ### AgentKitModule（`sdk.agentkit`）
 

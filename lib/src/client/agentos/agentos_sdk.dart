@@ -16,6 +16,8 @@ import 'agentos_event_handler.dart';
 import '../../utils/api_client.dart';
 import '../authkit/authkit_client.dart';
 import '../authkit/dto.dart';
+import '../harnesskit/dto.dart';
+import '../harnesskit/harnesskit_client.dart';
 import '../appkit/appkit_client.dart';
 import '../appkit/dto.dart';
 import '../cronkit/cronkit_client.dart';
@@ -64,6 +66,9 @@ class AgentOSSDK {
   late final TransferKitClient _transferKit = TransferKitClient(
     apiClient: _apiClient,
   );
+  late final HarnessKitClient _harnessKit = HarnessKitClient(
+    apiClient: _apiClient,
+  );
   final Map<_AppAuthCacheKey, String> _appTokens = <_AppAuthCacheKey, String>{};
   final Map<String, _AppAuthCacheKey> _tokenContexts =
       <String, _AppAuthCacheKey>{};
@@ -94,6 +99,7 @@ class AgentOSSDK {
   late final AuthKitModule authkit = AuthKitModule._(this);
   late final DiscoveryKitModule discoverykit = DiscoveryKitModule._(this);
   late final TransferKitModule transferkit = TransferKitModule._(this);
+  late final HarnessKitModule harnesskit = HarnessKitModule._(this);
 
   static ApiClient _buildApiClient({
     String? baseUrl,
@@ -1450,6 +1456,128 @@ class TransferKitModule {
       ),
     );
   }
+}
+
+/// Entry point for the AppKit-authenticated Harness API.
+///
+/// Register the app with [AgentOSModule.registerBundle] before calling these
+/// methods. The App manifest must opt in to a managed Harness runtime when the
+/// app uses a dedicated runtime.
+class HarnessKitModule {
+  HarnessKitModule._(this._client);
+
+  final AgentOSSDK _client;
+
+  /// Checks whether the authenticated Harness runtime is reachable.
+  Future<Map<String, dynamic>> health() => _client._withAppAuthRetry(
+    (bearerToken) => _client._harnessKit.health(bearerToken: bearerToken),
+  );
+
+  /// Reads the active Harness runtime engine.
+  Future<HarnessKitRuntimeInfo> getRuntime() => _client._withAppAuthRetry(
+    (bearerToken) => _client._harnessKit.getRuntime(bearerToken: bearerToken),
+  );
+
+  /// Switches the active Harness runtime engine.
+  Future<HarnessKitEngineSwitchResult> switchEngine({
+    required HarnessKitEngineId engine,
+  }) => _client._withAppAuthRetry(
+    (bearerToken) => _client._harnessKit.switchEngine(
+      bearerToken: bearerToken,
+      engine: engine,
+    ),
+  );
+
+  /// Lists saved Harness conversations.
+  Future<List<HarnessKitThreadSnapshot>> listThreads() =>
+      _client._withAppAuthRetry(
+        (bearerToken) =>
+            _client._harnessKit.listThreads(bearerToken: bearerToken),
+      );
+
+  /// Retrieves one saved conversation.
+  Future<HarnessKitThreadSnapshot> getThread({required String threadId}) =>
+      _client._withAppAuthRetry(
+        (bearerToken) => _client._harnessKit.getThread(
+          bearerToken: bearerToken,
+          threadId: threadId,
+        ),
+      );
+
+  /// Renames one saved conversation.
+  Future<HarnessKitThreadRenameResult> renameThread({
+    required String threadId,
+    required String title,
+  }) => _client._withAppAuthRetry(
+    (bearerToken) => _client._harnessKit.renameThread(
+      bearerToken: bearerToken,
+      threadId: threadId,
+      title: title,
+    ),
+  );
+
+  /// Deletes one saved conversation.
+  Future<HarnessKitThreadDeleteResult> deleteThread({
+    required String threadId,
+  }) => _client._withAppAuthRetry(
+    (bearerToken) => _client._harnessKit.deleteThread(
+      bearerToken: bearerToken,
+      threadId: threadId,
+    ),
+  );
+
+  /// Starts a run on a conversation.
+  Future<HarnessKitRunAccepted> startRun({
+    required String threadId,
+    required HarnessKitRunRequest request,
+  }) => _client._withAppAuthRetry(
+    (bearerToken) => _client._harnessKit.startRun(
+      bearerToken: bearerToken,
+      threadId: threadId,
+      request: request,
+    ),
+  );
+
+  /// Submits a command and returns its receipt, including rejected receipts.
+  Future<HarnessKitCommandReceipt> submitCommand({
+    required String threadId,
+    required HarnessKitCommand command,
+  }) => _client._withAppAuthRetry(
+    (bearerToken) => _client._harnessKit.submitCommand(
+      bearerToken: bearerToken,
+      threadId: threadId,
+      command: command,
+    ),
+  );
+
+  /// Opens a resumable event stream. Cancel its subscription to close it.
+  Future<Stream<HarnessKitEvent>> events({
+    required String threadId,
+    HarnessKitEventsOptions options = const HarnessKitEventsOptions(),
+  }) => _client._withAppAuthRetry(
+    (bearerToken) => _client._harnessKit.events(
+      bearerToken: bearerToken,
+      threadId: threadId,
+      options: options,
+    ),
+  );
+
+  /// Retrieves the final result for a run.
+  Future<HarnessKitRunResult> getRunResult({required String runId}) =>
+      _client._withAppAuthRetry(
+        (bearerToken) => _client._harnessKit.getRunResult(
+          bearerToken: bearerToken,
+          runId: runId,
+        ),
+      );
+
+  /// Retrieves the operational snapshot for the Harness runtime.
+  Future<HarnessKitOperationalSnapshot> getOperationalSnapshot() =>
+      _client._withAppAuthRetry(
+        (bearerToken) => _client._harnessKit.getOperationalSnapshot(
+          bearerToken: bearerToken,
+        ),
+      );
 }
 
 class _AppAuthContext {

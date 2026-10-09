@@ -14,6 +14,7 @@ export 'src/client/cronkit/dto.dart';
 export 'src/client/discoverykit/dto.dart';
 export 'src/client/ragkit/dto.dart';
 export 'src/client/transferkit/dto.dart';
+export 'src/client/harnesskit/dto.dart';
 export 'src/client/agentkit/common_dto.dart';
 export 'src/client/agentkit/agents_dto.dart';
 export 'src/client/agentkit/sessions_dto.dart';
