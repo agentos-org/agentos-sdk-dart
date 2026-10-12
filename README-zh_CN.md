@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 一个轻量的 Dart SDK，用于访问 AgentOS API，支持 Root、AgentKit、AppKit、
-AuthKit、CronKit、DiscoveryKit、HarnessKit、RagKit、ModelKit（chat / embedding / asr / tts）、
+AuthKit、CronKit、DiscoveryKit、HarnessKit、RagKit、ModelKit（chat / embedding / asr / tts / decision，及 app model 注册）、
 ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手动管理 token。
 
 ## 功能
@@ -15,8 +15,9 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 - CronKit API：定时任务 CRUD、运行记录与调度器控制
 - DiscoveryKit API：附近设备发现、设备流、注册/注销
 - RagKit API：知识库、文档、同步与查询接口
-- ModelKit API：基于任务的模型列表，以及 `/modelkit/*` 下的 OpenAI 兼容
-  chat / embedding / asr / tts 客户端
+- ModelKit API：基于任务的模型列表，`/modelkit/*` 下的 OpenAI 兼容
+  chat / embedding / asr / tts 客户端，带类型问题的 decision 推理，以及外部
+  app model 注册
 - ToolKit API：tool 列表、tool 定义读取与 tool 生命周期事件订阅
 - TransferKit API：设备间文件传输、进度流、接收策略与传输历史
 
@@ -26,7 +27,7 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.9.0
+  agentos_sdk: ^0.10.0
 ```
 
 然后执行：
@@ -152,6 +153,92 @@ print(completion.choices.first.message.content?.first.text);
 
 `sdk.modelkit` 返回的是 `ModelInfo`，以 `task` + `capabilities` 分类。
 
+### 使用 ModelKit Decision
+
+Decision 模型（`ModelTask.decision`，由 llama.cpp `/v1/systemone` 提供）不生成
+文本，而是针对给定的 `state`，对带类型问题的选项打分。`POST /modelkit/decision`
+不需要 app token。
+
+```dart
+final decisionModels = await sdk.modelkit.listModelsByTask(ModelTask.decision);
+
+final response = await sdk.modelkit.decision.create(
+  model: decisionModels.first.name, // 可选，缺省时由网关选择默认模型
+  state: <String, dynamic>{'text': '我的订单迟迟不到，太让人生气了！'},
+  questions: <String, DecisionQuestion>{
+    // 单选（选项 -> 描述）
+    'route': DecisionQuestion.choice(
+      instructions: '应该交给哪个团队处理？',
+      options: const <String, String>{
+        'billing': '支付与发票',
+        'support': '商品或物流问题',
+      },
+    ),
+    // 有序评分，2-10 个等级描述
+    'urgency': DecisionQuestion.score(
+      instructions: '这件事有多紧急？',
+      levels: const <String>['低', '中', '高'],
+    ),
+    // 是/否判断
+    'angry': DecisionQuestion.noul(instructions: '用户是否生气了？'),
+  },
+  // images: ['data:image/png;base64,...'], // 支持图片输入的模型可用
+);
+
+final route = response.answers['route']!;
+print('${route.choice}（置信度：${route.confidence}）');
+print('urgency: ${response.answers['urgency']!.score}');
+print('angry: ${response.answers['angry']!.noul}');
+print('tokens: ${response.usage?.inputTokens} / ${response.usage?.outputTokens}');
+```
+
+`DecisionAnswer` 提供 `choice`、`score`、`noul`、`confidence`、`probabilities`、
+`legend`；其中 `probabilities` / `legend` 按服务端返回内容原样透传，`raw` 保存
+完整的答案对象。
+
+### 注册 App Model
+
+App 可以把自己的模型注册到网关。注册后的模型会出现在 `listModels()` /
+`listModelsByTask()` 中，并带有 `isAppModel == true` 与所属的 `appBundleId`。
+
+```dart
+await sdk.agentos.registerBundle(bundleId: 'com.example.app');
+
+// 注册（或替换）模型，只有 `id` 和 `name` 必填。
+final result = await sdk.modelkit.registerAppModel(
+  request: const AppModelRegistration(
+    id: 'my-router',
+    name: 'my-router',
+    task: ModelTask.decision,
+    baseUrl: 'http://127.0.0.1:9000',
+    apiKey: 'upstream-secret', // 由服务端保存，不会再返回
+  ),
+);
+print(result.updated); // 替换了该 app 已有的同 id 模型时为 true
+
+// 局部更新：未设置的字段保持不变。
+await sdk.modelkit.updateAppModel(
+  modelId: 'my-router',
+  request: const AppModelUpdate(description: '分流客服工单'),
+);
+
+// 启用/停用，无需删除。
+await sdk.modelkit.toggleAppModel(modelId: 'my-router');
+
+// 列出所有 app 注册的模型（公开接口，无需 token）。
+final appModels = await sdk.modelkit.listAppModels();
+print(appModels.map((m) => '${m.id} by ${m.appBundleId} disabled=${m.isDisabled}'));
+
+await sdk.modelkit.unregisterAppModel(modelId: 'my-router');
+```
+
+写操作会自动附带 app token，并在 `401` 时刷新一次。失败时抛出带服务端状态码的
+`DioException`：`401` token 无效，`403` 不是所属 app 或 `appBundleId` 不匹配，
+`404` id 不存在，`409` id 属于其他 app，`400` 请求体非法或 `task` 未知。
+
+Decision 模型会被服务端规范化：输入为 `text`（可选 `image`），输出为
+`decisions`，`stream` / `tool_call` / `reasoning` 均为 `false`。
+
 ## API 参考
 
 ### AgentOSSDK
@@ -177,7 +264,7 @@ AgentOSSDK({
 | `discoverykit` | `DiscoveryKitModule` | DiscoveryKit 附近设备发现接口。 |
 | `harnesskit` | `HarnessKitModule` | Harness runtime、thread、run、command 和事件接口。 |
 | `ragkit` | `RagKitModule` | RagKit 知识库接口，内部处理 token。 |
-| `modelkit` | `ModelKitModule` | ModelKit 基于任务的模型列表与 chat / embedding / asr / tts 客户端。 |
+| `modelkit` | `ModelKitModule` | ModelKit 基于任务的模型列表、chat / embedding / asr / tts / decision 客户端与 app model 注册。 |
 | `toolkit` | `ToolKitModule` | ToolKit 发现接口与 tool 生命周期事件订阅。 |
 | `transferkit` | `TransferKitModule` | TransferKit 文件传输接口。 |
 | `dispose()` | `Future<void>` | 释放 SDK 资源并取消当前 AppKit 订阅。 |
@@ -380,16 +467,26 @@ if (result.isFailure) {
 | 方法/属性 | 类型 | 说明 |
 | --- | --- | --- |
 | `listModels()` | `Future<List<ModelInfo>>` | 从 `/modelkit/models` 获取可用模型列表。 |
-| `listModelsByTask(ModelTask task)` | `Future<List<ModelInfo>>` | 按任务（`chat` / `embedding` / `asr` / `tts`）过滤模型。 |
+| `listModelsByTask(ModelTask task)` | `Future<List<ModelInfo>>` | 按任务（`chat` / `embedding` / `asr` / `tts` / `decision`）过滤模型。 |
 | `chat` | `ModelKitChatClient` | OpenAI 兼容 chat 客户端，使用 `{baseUrl}/modelkit/chat`。 |
 | `embedding` | `ModelKitEmbeddingClient` | `/modelkit/embedding` 下的 OpenAI 兼容 embeddings 客户端。 |
 | `asr` | `ModelKitAsrClient` | `/modelkit/asr` 下的语音转文字客户端。 |
 | `tts` | `ModelKitTtsClient` | `/modelkit/tts` 下的文字转语音客户端。 |
+| `decision` | `ModelKitDecisionClient` | `decision.create({model, state, questions, images, extra})` → `POST /modelkit/decision`，返回 `DecisionResponse`。 |
+| `listAppModels()` | `Future<List<AppModel>>` | 通过 `GET /modelkit/app-models` 列出 app 注册的模型（公开接口）。 |
+| `registerAppModel({required AppModelRegistration request})` | `Future<AppModelWriteResult>` | 注册或替换 app model（`POST /modelkit/app-models`，需 app token）。 |
+| `updateAppModel({required String modelId, required AppModelUpdate request})` | `Future<AppModelWriteResult>` | 局部更新自己的 app model（`PUT /modelkit/app-models/<id>`）。 |
+| `unregisterAppModel({required String modelId})` | `Future<AppModelWriteResult>` | 删除自己的 app model（`DELETE /modelkit/app-models/<id>`）。 |
+| `toggleAppModel({required String modelId})` | `Future<AppModelWriteResult>` | 启用/停用自己的 app model（`POST /modelkit/app-models/<id>/toggle`）。 |
 
 `ModelInfo` 通过 `task`（`ModelTask`）、`inputModalities` / `outputModalities`
 （`Modality`）以及 `capabilities`（`ModelCapabilities`：`vision` / `toolCall` /
-`stream`）描述每个模型，并提供 `hasVision`、`supportsChatInference`、
-`isVisionLanguage` 等便捷 getter。
+`stream` / `reasoning`）描述每个模型，并提供 `hasVision`、
+`supportsChatInference`、`supportsDecisionInference`、`isVisionLanguage` 等便捷
+getter。App 注册的模型还会带有 `isAppModel` 与 `appBundleId`。
+
+`ModelKitClient`（`ModelKitClient(apiClient: ...)`）提供同样的 app model 方法，
+但需要显式传入 `bearerToken:`，而不是自动使用 app token。
 
 ### ToolKitModule（`sdk.toolkit`）
 
@@ -577,6 +674,9 @@ await sdk.agentkit.stop(sessionId: sessionId);
 - AgentKit 接口通过 `/agentkit/*` 对外提供。
 - CronKit 接口通过 `/cronkit/*` 对外提供。
 - `sdk.modelkit.chat` 请求 `/modelkit/chat/...`。
+- `sdk.modelkit.decision` 请求 `/modelkit/decision`；app model 管理请求
+  `/modelkit/app-models`。只有 app model 的写操作需要先调用
+  `agentos.registerBundle`。
 - `sdk.toolkit.subscribeToolEvents(...)` 需要 daemon API key，并通过 SSE
   持续推送 tool 生命周期事件。
 - 外部集成应仅使用 `package:agentos_sdk/agentos_sdk.dart`，避免导入 `package:agentos_sdk/src/...`。

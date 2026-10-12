@@ -1,3 +1,19 @@
+## 0.10.0
+
+- feat: add ModelKit decision inference. `ModelTask.decision`,
+  `Modality.decisions`, `ModelInfo.supportsDecisionInference` and
+  `sdk.modelkit.decision.create(...)` (`POST /modelkit/decision`) with typed
+  `DecisionQuestion` (`choice` / `score` / `noul`), `DecisionResponse`,
+  `DecisionAnswer` and `DecisionUsage`.
+- feat: add app model registration. `sdk.modelkit.listAppModels()`,
+  `registerAppModel`, `updateAppModel`, `unregisterAppModel` and
+  `toggleAppModel` for `/modelkit/app-models`. Write calls reuse the app token
+  from `registerBundle` and refresh it once on `401`. `ModelKitClient` exposes
+  the same methods with an explicit `bearerToken`.
+- feat: `ModelInfo` now reports `isAppModel` and `appBundleId` for models
+  registered by apps.
+- fix: models with `decisions` output are no longer reported as `text` output.
+
 ## 0.9.0
 
 - feat: add HarnessKit runtime, thread, run, command, result, and operational

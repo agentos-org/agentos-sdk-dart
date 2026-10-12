@@ -119,6 +119,28 @@ Future<void> main(List<String> args) async {
     ],
   );
   print(chatCompletion.choices.first.message.content?.first.text);
+
+  /// HTTP:
+  /// GET http://localhost:8888/modelkit/app-models
+  final appModels = await sdk.modelkit.listAppModels();
+  print(
+    'App models: ${appModels.map((m) => "${m.id}(${m.appBundleId})").join(", ")}',
+  );
+
+  /// HTTP:
+  /// POST http://localhost:8888/modelkit/decision
+  /// Only runs when the gateway exposes a decision model.
+  final decisionModels = models.where((m) => m.supportsDecisionInference);
+  if (decisionModels.isNotEmpty) {
+    final decision = await sdk.modelkit.decision.create(
+      model: decisionModels.first.name,
+      state: userMessage,
+      questions: <String, DecisionQuestion>{
+        'angry': DecisionQuestion.noul(instructions: 'Is the user angry?'),
+      },
+    );
+    print('angry: ${decision.answers['angry']?.noul}');
+  }
 }
 
 class _DemoEventHandler extends AgentOSEventHandler {

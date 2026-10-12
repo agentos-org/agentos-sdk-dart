@@ -1159,7 +1159,8 @@ class _ActiveAgentKitChat {
   late final StreamSubscription<void> subscription;
 }
 
-/// Entry point for the task-oriented ModelKit API (chat / embedding / asr / tts).
+/// Entry point for the task-oriented ModelKit API
+/// (chat / embedding / asr / tts / decision) and app-model registration.
 class ModelKitModule {
   ModelKitModule._(this._client);
 
@@ -1169,6 +1170,7 @@ class ModelKitModule {
   ModelKitEmbeddingClient get embedding => _client._modelKit.embedding;
   ModelKitAsrClient get asr => _client._modelKit.asr;
   ModelKitTtsClient get tts => _client._modelKit.tts;
+  ModelKitDecisionClient get decision => _client._modelKit.decision;
 
   Future<List<ModelInfo>> listModels() {
     return _client._modelKit.listModels();
@@ -1176,6 +1178,60 @@ class ModelKitModule {
 
   Future<List<ModelInfo>> listModelsByTask(ModelTask task) {
     return _client._modelKit.listModelsByTask(task);
+  }
+
+  /// Lists models registered by apps. No app registration needed.
+  Future<List<AppModel>> listAppModels() {
+    return _client._modelKit.listAppModels();
+  }
+
+  /// Registers (or replaces) a model owned by the current app.
+  ///
+  /// Requires the app to be registered first (`registerApp`); the app token is
+  /// attached automatically.
+  Future<AppModelWriteResult> registerAppModel({
+    required AppModelRegistration request,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._modelKit.registerAppModel(
+        bearerToken: bearerToken,
+        request: request,
+      ),
+    );
+  }
+
+  /// Partially updates a model owned by the current app.
+  Future<AppModelWriteResult> updateAppModel({
+    required String modelId,
+    required AppModelUpdate request,
+  }) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._modelKit.updateAppModel(
+        bearerToken: bearerToken,
+        modelId: modelId,
+        request: request,
+      ),
+    );
+  }
+
+  /// Removes a model owned by the current app.
+  Future<AppModelWriteResult> unregisterAppModel({required String modelId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._modelKit.unregisterAppModel(
+        bearerToken: bearerToken,
+        modelId: modelId,
+      ),
+    );
+  }
+
+  /// Enables or disables a model owned by the current app.
+  Future<AppModelWriteResult> toggleAppModel({required String modelId}) {
+    return _client._withAppAuthRetry(
+      (bearerToken) => _client._modelKit.toggleAppModel(
+        bearerToken: bearerToken,
+        modelId: modelId,
+      ),
+    );
   }
 }
 

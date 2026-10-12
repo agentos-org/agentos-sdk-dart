@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, AppKit,
-AuthKit, CronKit, DiscoveryKit, HarnessKit, RagKit, ModelKit (chat / embedding / asr / tts),
+AuthKit, CronKit, DiscoveryKit, HarnessKit, RagKit, ModelKit (chat / embedding / asr / tts / decision, app models),
 ToolKit, and TransferKit endpoints. Use the unified `AgentOSSDK` to avoid managing tokens manually.
 
 ## Features
@@ -15,8 +15,9 @@ ToolKit, and TransferKit endpoints. Use the unified `AgentOSSDK` to avoid managi
 - CronKit API: cron task CRUD, run history, and scheduler control
 - DiscoveryKit API: nearby device discovery, peer streaming, registration
 - RagKit API: RAG base, document, sync, and query endpoints
-- ModelKit API: task-oriented model listing and OpenAI-compatible chat /
-  embedding / asr / tts clients under `/modelkit/*`
+- ModelKit API: task-oriented model listing, OpenAI-compatible chat /
+  embedding / asr / tts clients under `/modelkit/*`, typed-question decision
+  inference, and external app-model registration
 - ToolKit API: tool listing, tool definition loading, and tool lifecycle event
   subscription
 - TransferKit API: device-to-device file transfer, progress streaming, receive
@@ -28,7 +29,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.9.0
+  agentos_sdk: ^0.10.0
 ```
 
 Then run:
@@ -154,6 +155,95 @@ print(completion.choices.first.message.content?.first.text);
 
 `sdk.modelkit` returns `ModelInfo`, classified by `task` + `capabilities`.
 
+### Use ModelKit Decision
+
+Decision models (`ModelTask.decision`, served by llama.cpp `/v1/systemone`)
+do not generate text. They score the options of typed questions about a given
+`state`. `POST /modelkit/decision` needs no app token.
+
+```dart
+final decisionModels = await sdk.modelkit.listModelsByTask(ModelTask.decision);
+
+final response = await sdk.modelkit.decision.create(
+  model: decisionModels.first.name, // optional, the gateway picks a default
+  state: <String, dynamic>{'text': 'My order is late and I am furious!'},
+  questions: <String, DecisionQuestion>{
+    // Pick one option (option -> description).
+    'route': DecisionQuestion.choice(
+      instructions: 'Which team should handle this?',
+      options: const <String, String>{
+        'billing': 'Payment and invoices',
+        'support': 'Product or delivery problems',
+      },
+    ),
+    // Ordinal scale with 2-10 level descriptions.
+    'urgency': DecisionQuestion.score(
+      instructions: 'How urgent is this?',
+      levels: const <String>['low', 'medium', 'high'],
+    ),
+    // Yes/no judgement.
+    'angry': DecisionQuestion.noul(instructions: 'Is the user angry?'),
+  },
+  // images: ['data:image/png;base64,...'], // for models with image input
+);
+
+final route = response.answers['route']!;
+print('${route.choice} (confidence: ${route.confidence})');
+print('urgency: ${response.answers['urgency']!.score}');
+print('angry: ${response.answers['angry']!.noul}');
+print('tokens: ${response.usage?.inputTokens} / ${response.usage?.outputTokens}');
+```
+
+`DecisionAnswer` exposes `choice`, `score`, `noul`, `confidence`,
+`probabilities` and `legend`; `probabilities` / `legend` are passed through as
+returned by the server, and `raw` holds the complete answer object.
+
+### Register an App Model
+
+Apps can register their own models into the gateway. Registered models show up
+in `listModels()` / `listModelsByTask()` with `isAppModel == true` and the
+owning `appBundleId`.
+
+```dart
+await sdk.agentos.registerBundle(bundleId: 'com.example.app');
+
+// Register (or replace) a model. Only `id` and `name` are required.
+final result = await sdk.modelkit.registerAppModel(
+  request: const AppModelRegistration(
+    id: 'my-router',
+    name: 'my-router',
+    task: ModelTask.decision,
+    baseUrl: 'http://127.0.0.1:9000',
+    apiKey: 'upstream-secret', // stored by the server, never returned
+  ),
+);
+print(result.updated); // true when an existing model of this app was replaced
+
+// Partial update: unset fields stay unchanged.
+await sdk.modelkit.updateAppModel(
+  modelId: 'my-router',
+  request: const AppModelUpdate(description: 'Routes support tickets'),
+);
+
+// Enable/disable without deleting.
+await sdk.modelkit.toggleAppModel(modelId: 'my-router');
+
+// List every app-registered model (public, no token needed).
+final appModels = await sdk.modelkit.listAppModels();
+print(appModels.map((m) => '${m.id} by ${m.appBundleId} disabled=${m.isDisabled}'));
+
+await sdk.modelkit.unregisterAppModel(modelId: 'my-router');
+```
+
+Write calls attach the app token automatically and refresh it once on `401`.
+They throw a `DioException` carrying the server status: `401` invalid token,
+`403` not the owning app or `appBundleId` mismatch, `404` unknown id, `409`
+the id belongs to another app, `400` invalid body or unknown `task`.
+
+Decision models are normalized by the server: input `text` (+ optional
+`image`), output `decisions`, and `stream` / `tool_call` / `reasoning` all
+`false`.
+
 ## API Reference
 
 ### AgentOSSDK
@@ -179,7 +269,7 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `discoverykit` | `DiscoveryKitModule` | DiscoveryKit nearby device discovery endpoints. |
 | `harnesskit` | `HarnessKitModule` | Harness runtime, thread, run, command, and event endpoints. |
 | `ragkit` | `RagKitModule` | RagKit knowledge-base endpoints with internal token handling. |
-| `modelkit` | `ModelKitModule` | ModelKit task-oriented model listing and chat / embedding / asr / tts clients. |
+| `modelkit` | `ModelKitModule` | ModelKit task-oriented model listing, chat / embedding / asr / tts / decision clients, and app-model registration. |
 | `toolkit` | `ToolKitModule` | ToolKit discovery endpoints and tool lifecycle event subscription. |
 | `transferkit` | `TransferKitModule` | TransferKit file transfer endpoints. |
 | `dispose()` | `Future<void>` | Releases SDK resources and cancels active AppKit subscription. |
@@ -393,17 +483,29 @@ for a minimal runtime and thread listing example.
 | Method/Property | Type | Description |
 | --- | --- | --- |
 | `listModels()` | `Future<List<ModelInfo>>` | Fetches available models from `/modelkit/models`. |
-| `listModelsByTask(ModelTask task)` | `Future<List<ModelInfo>>` | Returns models filtered by task (`chat` / `embedding` / `asr` / `tts`). |
+| `listModelsByTask(ModelTask task)` | `Future<List<ModelInfo>>` | Returns models filtered by task (`chat` / `embedding` / `asr` / `tts` / `decision`). |
 | `chat` | `ModelKitChatClient` | OpenAI-compatible chat client using `{baseUrl}/modelkit/chat`. |
 | `embedding` | `ModelKitEmbeddingClient` | OpenAI-compatible embeddings client under `/modelkit/embedding`. |
 | `asr` | `ModelKitAsrClient` | Speech-to-text client under `/modelkit/asr`. |
 | `tts` | `ModelKitTtsClient` | Text-to-speech client under `/modelkit/tts`. |
+| `decision` | `ModelKitDecisionClient` | `decision.create({model, state, questions, images, extra})` → `POST /modelkit/decision`, returns `DecisionResponse`. |
+| `listAppModels()` | `Future<List<AppModel>>` | Lists app-registered models from `GET /modelkit/app-models` (public). |
+| `registerAppModel({required AppModelRegistration request})` | `Future<AppModelWriteResult>` | Registers or replaces an app model (`POST /modelkit/app-models`, app token). |
+| `updateAppModel({required String modelId, required AppModelUpdate request})` | `Future<AppModelWriteResult>` | Partially updates an owned app model (`PUT /modelkit/app-models/<id>`). |
+| `unregisterAppModel({required String modelId})` | `Future<AppModelWriteResult>` | Removes an owned app model (`DELETE /modelkit/app-models/<id>`). |
+| `toggleAppModel({required String modelId})` | `Future<AppModelWriteResult>` | Enables/disables an owned app model (`POST /modelkit/app-models/<id>/toggle`). |
 
 `ModelInfo` describes each model with `task` (`ModelTask`), `inputModalities` /
 `outputModalities` (`Modality`), and `capabilities` (`ModelCapabilities`:
 `vision` / `toolCall` / `stream` / `reasoning`). In particular,
 `capabilities.reasoning` is a `bool`. Convenience getters `hasVision`,
-`supportsChatInference`, and `isVisionLanguage` are provided.
+`supportsChatInference`, `supportsDecisionInference` and `isVisionLanguage` are
+provided. App-registered models additionally report `isAppModel` and
+`appBundleId`.
+
+`ModelKitClient` (`ModelKitClient(apiClient: ...)`) offers the same app-model
+methods with an explicit `bearerToken:` parameter instead of the automatic app
+token.
 
 ### ToolKitModule (`sdk.toolkit`)
 
@@ -596,6 +698,9 @@ API does not expose the underlying Dart stream subscription.
   for clearer separation of API areas.
 - AgentKit endpoints are exposed under `/agentkit/*`.
 - `sdk.modelkit.chat` targets `/modelkit/chat/...`.
+- `sdk.modelkit.decision` targets `/modelkit/decision`; app-model management
+  targets `/modelkit/app-models`. Only app-model writes need
+  `agentos.registerBundle` first.
 - `sdk.toolkit.subscribeToolEvents(...)` requires a daemon API key and streams
   tool lifecycle events via SSE.
 - External integrations should use only `package:agentos_sdk/agentos_sdk.dart`
