@@ -29,7 +29,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.10.0
+  agentos_sdk: ^0.9.0
 ```
 
 Then run:
@@ -219,6 +219,11 @@ final result = await sdk.modelkit.registerAppModel(
 );
 print(result.updated); // true when an existing model of this app was replaced
 
+// The `id` only has to be unique within your app. The gateway exposes the model
+// as `<id>@<bundleId>`; store it and use it as `model` in requests so they are
+// routed to exactly this model.
+final modelId = result.qualifiedId ?? result.id; // 'my-router@com.example.app'
+
 // Partial update: unset fields stay unchanged.
 await sdk.modelkit.updateAppModel(
   modelId: 'my-router',
@@ -230,15 +235,17 @@ await sdk.modelkit.toggleAppModel(modelId: 'my-router');
 
 // List every app-registered model (public, no token needed).
 final appModels = await sdk.modelkit.listAppModels();
-print(appModels.map((m) => '${m.id} by ${m.appBundleId} disabled=${m.isDisabled}'));
+print(appModels.map((m) => '${m.qualifiedId} by ${m.appBundleId} disabled=${m.isDisabled}'));
 
 await sdk.modelkit.unregisterAppModel(modelId: 'my-router');
 ```
 
 Write calls attach the app token automatically and refresh it once on `401`.
 They throw a `DioException` carrying the server status: `401` invalid token,
-`403` not the owning app or `appBundleId` mismatch, `404` unknown id, `409`
-the id belongs to another app, `400` invalid body or unknown `task`.
+`403` `appBundleId` mismatch, `404` unknown id (ids are looked up only among your
+own app's models), `409` the `name` is already used by another model of your
+app, `400` invalid body, unknown `task`, or an `id` / bundle ID outside
+`[A-Za-z0-9._-]` (limits: 64 / 128 characters).
 
 Decision models are normalized by the server: input `text` (+ optional
 `image`), output `decisions`, and `stream` / `tool_call` / `reasoning` all

@@ -312,6 +312,7 @@ void main() {
         return <Map<String, dynamic>>[
           <String, dynamic>{
             'id': 'app-model-1',
+            'qualifiedId': 'app-model-1@com.demo.app',
             'name': 'router',
             'alias': 'router',
             'description': 'routes requests',
@@ -344,6 +345,7 @@ void main() {
 
       final model = models.single;
       expect(model.id, 'app-model-1');
+      expect(model.qualifiedId, 'app-model-1@com.demo.app');
       expect(model.task, ModelTask.decision);
       expect(model.outputModalities, <Modality>[Modality.decisions]);
       expect(model.capabilities.stream, isFalse);
@@ -356,10 +358,36 @@ void main() {
     });
 
     test(
+      'listAppModels falls back to the bare id when the gateway predates '
+      'qualifiedId',
+      () async {
+        final recorder = _RecordingInterceptor(
+          (options) => <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'legacy-1',
+              'name': 'legacy',
+              'appBundleId': 'com.demo.app',
+            },
+          ],
+        );
+        final models = await ModelKitClient(
+          apiClient: _apiClient(recorder),
+        ).listAppModels();
+
+        expect(models.single.id, 'legacy-1');
+        expect(models.single.qualifiedId, 'legacy-1');
+      },
+    );
+
+    test(
       'registerAppModel sends the bearer token and a minimal body',
       () async {
         final recorder = _RecordingInterceptor(
-          (options) => <String, dynamic>{'success': true, 'id': 'router'},
+          (options) => <String, dynamic>{
+            'success': true,
+            'id': 'router',
+            'qualifiedId': 'router@com.demo.app',
+          },
         );
         final client = ModelKitClient(apiClient: _apiClient(recorder));
 
@@ -387,6 +415,7 @@ void main() {
         });
         expect(result.success, isTrue);
         expect(result.id, 'router');
+        expect(result.qualifiedId, 'router@com.demo.app');
         expect(result.updated, isFalse);
       },
     );
@@ -445,10 +474,10 @@ void main() {
       },
     );
 
-    test('registerAppModel keeps the status of ownership conflicts', () async {
+    test('registerAppModel keeps the status of name conflicts', () async {
       final recorder = _RecordingInterceptor(
         (options) => _httpError(options, 409, <String, dynamic>{
-          'error': 'owned by another app',
+          'error': 'name already used by another model of this app',
         }),
       );
       final client = ModelKitClient(apiClient: _apiClient(recorder));

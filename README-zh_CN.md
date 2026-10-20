@@ -27,7 +27,7 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.10.0
+  agentos_sdk: ^0.9.0
 ```
 
 然后执行：
@@ -216,6 +216,10 @@ final result = await sdk.modelkit.registerAppModel(
 );
 print(result.updated); // 替换了该 app 已有的同 id 模型时为 true
 
+// `id` 只需在你的 app 内唯一。网关对外把该模型暴露为 `<id>@<bundleId>`；
+// 请保存它并在请求的 `model` 里使用，就能精确路由到这个模型。
+final modelId = result.qualifiedId ?? result.id; // 'my-router@com.example.app'
+
 // 局部更新：未设置的字段保持不变。
 await sdk.modelkit.updateAppModel(
   modelId: 'my-router',
@@ -227,14 +231,16 @@ await sdk.modelkit.toggleAppModel(modelId: 'my-router');
 
 // 列出所有 app 注册的模型（公开接口，无需 token）。
 final appModels = await sdk.modelkit.listAppModels();
-print(appModels.map((m) => '${m.id} by ${m.appBundleId} disabled=${m.isDisabled}'));
+print(appModels.map((m) => '${m.qualifiedId} by ${m.appBundleId} disabled=${m.isDisabled}'));
 
 await sdk.modelkit.unregisterAppModel(modelId: 'my-router');
 ```
 
 写操作会自动附带 app token，并在 `401` 时刷新一次。失败时抛出带服务端状态码的
-`DioException`：`401` token 无效，`403` 不是所属 app 或 `appBundleId` 不匹配，
-`404` id 不存在，`409` id 属于其他 app，`400` 请求体非法或 `task` 未知。
+`DioException`：`401` token 无效，`403` `appBundleId` 不匹配，`404` id 不存在
+（id 只在你自己 app 的模型里查找），`409` `name` 与你 app 下另一个模型重名，
+`400` 请求体非法、`task` 未知，或 `id` / bundle ID 含 `[A-Za-z0-9._-]` 以外的字符
+（长度上限 64 / 128）。
 
 Decision 模型会被服务端规范化：输入为 `text`（可选 `image`），输出为
 `decisions`，`stream` / `tool_call` / `reasoning` 均为 `false`。

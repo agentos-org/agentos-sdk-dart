@@ -395,6 +395,7 @@ class AppModel {
   const AppModel({
     required this.id,
     required this.name,
+    String? qualifiedId,
     this.alias = '',
     this.description = '',
     this.task = ModelTask.chat,
@@ -408,13 +409,14 @@ class AppModel {
     this.isDisabled = false,
     required this.appBundleId,
     this.appName = '',
-  });
+  }) : qualifiedId = qualifiedId ?? id;
 
   factory AppModel.fromJson(Map<String, dynamic> json) {
     final capabilitiesJson = json['capabilities'];
     return AppModel(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
+      qualifiedId: json['qualifiedId']?.toString(),
       alias: json['alias']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       task: ModelTask.fromString(json['task']?.toString()) ?? ModelTask.chat,
@@ -435,7 +437,20 @@ class AppModel {
     );
   }
 
+  /// The app's own identifier for this model (the `localId` it registered).
+  ///
+  /// Different apps may use the same [id]; use [qualifiedId] to address a model
+  /// in requests, and [id] only for `updateAppModel` / `unregisterAppModel` /
+  /// `toggleAppModel` on models owned by the calling app.
   final String id;
+
+  /// The full model ID, `<id>@<appBundleId>`: identical to the model's `id` in
+  /// [ModelKitClient.listModels]. Pass it as the `model` of chat / embedding /
+  /// ASR / TTS / decision requests to route to exactly this model.
+  ///
+  /// Falls back to [id] when the gateway predates namespaced model IDs and does
+  /// not return `qualifiedId` (such a gateway routes by the bare [id]).
+  final String qualifiedId;
   final String name;
   final String alias;
   final String description;
@@ -485,6 +500,10 @@ class AppModelRegistration {
     this.appName,
   });
 
+  /// The model's identifier within this app (its `localId`): 1-64 characters
+  /// from `[A-Za-z0-9._-]`. Different apps may use the same value; the gateway
+  /// exposes the model as `<id>@<bundleId>` (see
+  /// [AppModelWriteResult.qualifiedId]).
   final String id;
   final String name;
   final String? alias;
@@ -588,6 +607,7 @@ class AppModelWriteResult {
   const AppModelWriteResult({
     required this.success,
     this.id,
+    this.qualifiedId,
     this.updated = false,
   });
 
@@ -595,14 +615,21 @@ class AppModelWriteResult {
     return AppModelWriteResult(
       success: json['success'] as bool? ?? false,
       id: json['id']?.toString(),
+      qualifiedId: json['qualifiedId']?.toString(),
       updated: json['updated'] as bool? ?? false,
     );
   }
 
   final bool success;
 
-  /// Model id; returned by register only.
+  /// The app's own model id (`localId`); returned by register only.
   final String? id;
+
+  /// The full model ID (`<id>@<bundleId>`) to use as the `model` of requests;
+  /// returned by register only. Store it: it routes to exactly this model.
+  ///
+  /// `null` when the gateway predates namespaced model IDs; use [id] then.
+  final String? qualifiedId;
 
   /// `true` when register replaced an existing model of the same app.
   final bool updated;
@@ -681,11 +708,16 @@ class ModelKitClient {
 
   /// Registers (or replaces) an app model (`POST /modelkit/app-models`).
   ///
-  /// [bearerToken] is the AppKit token from `registerApp`. Re-registering an
-  /// id owned by the same app replaces it ([AppModelWriteResult.updated] is
-  /// `true`). Throws a [DioException] with status 401 (missing/invalid
-  /// token), 403 (`appBundleId` mismatch), 409 (id owned by another app) or
-  /// 400 (invalid body, unknown `task`).
+  /// [bearerToken] is the AppKit token from `registerApp`. The model `id` only
+  /// has to be unique within the calling app; the result carries
+  /// [AppModelWriteResult.qualifiedId] (`<id>@<bundleId>`), the ID to use as
+  /// `model` in requests. Re-registering an id of the same app replaces it
+  /// ([AppModelWriteResult.updated] is `true`).
+  ///
+  /// Throws a [DioException] with status 401 (missing/invalid token), 403
+  /// (`appBundleId` mismatch), 409 (the `name` is already used by another model
+  /// of the same app) or 400 (invalid body, unknown `task`, or an `id` /
+  /// bundle ID outside `[A-Za-z0-9._-]` or over the length limit: 64 / 128).
   Future<AppModelWriteResult> registerAppModel({
     required String bearerToken,
     required AppModelRegistration request,
@@ -700,6 +732,9 @@ class ModelKitClient {
 
   /// Partially updates an app model owned by the token's app
   /// (`PUT /modelkit/app-models/<id>`).
+  ///
+  /// [modelId] is the app's own `id` (not the qualified ID) and is looked up
+  /// only among the calling app's models; an unknown id is a 404.
   Future<AppModelWriteResult> updateAppModel({
     required String bearerToken,
     required String modelId,

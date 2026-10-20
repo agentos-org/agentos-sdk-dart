@@ -1,5 +1,8 @@
-## 0.10.0
+## 0.9.0
 
+- feat: add HarnessKit runtime, thread, run, command, result, and operational
+  snapshot APIs with AppKit token handling and resumable SSE events.
+- feat: return rejected HarnessKit command receipts from HTTP 400 responses.
 - feat: add ModelKit decision inference. `ModelTask.decision`,
   `Modality.decisions`, `ModelInfo.supportsDecisionInference` and
   `sdk.modelkit.decision.create(...)` (`POST /modelkit/decision`) with typed
@@ -10,15 +13,18 @@
   `toggleAppModel` for `/modelkit/app-models`. Write calls reuse the app token
   from `registerBundle` and refresh it once on `401`. `ModelKitClient` exposes
   the same methods with an explicit `bearerToken`.
+- feat: app models use namespaced IDs. The gateway exposes a registered model as
+  `<id>@<bundleId>`; `AppModel.qualifiedId` and
+  `AppModelWriteResult.qualifiedId` carry it (store it and use it as `model` in
+  requests). `AppModel.qualifiedId` falls back to `id` for gateways that predate
+  namespaced IDs. `id` only has to be unique within the app, and registration
+  now rejects ids outside `[A-Za-z0-9._-]` (64 characters) with `400`. A `409`
+  now means the `name` is already used by another model of the same app; an id
+  that belongs to another app no longer conflicts, and updating/removing such an
+  id is a `404`.
 - feat: `ModelInfo` now reports `isAppModel` and `appBundleId` for models
   registered by apps.
 - fix: models with `decisions` output are no longer reported as `text` output.
-
-## 0.9.0
-
-- feat: add HarnessKit runtime, thread, run, command, result, and operational
-  snapshot APIs with AppKit token handling and resumable SSE events.
-- feat: return rejected HarnessKit command receipts from HTTP 400 responses.
 
 ## 0.8.0
 
