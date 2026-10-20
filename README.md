@@ -155,6 +155,33 @@ print(completion.choices.first.message.content?.first.text);
 
 `sdk.modelkit` returns `ModelInfo`, classified by `task` + `capabilities`.
 
+Every `ModelInfo` also carries `source` (`ModelSource`), the mutually exclusive
+origin of the model. Group and label models by it instead of combining
+`isRemote` / `isCustom` / `isAppModel`:
+
+| `ModelSource` | Meaning | Suggested group |
+| --- | --- | --- |
+| `local` | Runs on this device | Local Models |
+| `platform` | Remote model provided by the AgentOS platform | Platform Models |
+| `custom` | Remote model configured by the user | Custom Models |
+| `app` | Registered by a third-party app | `App · {appName}` (one group per app) |
+
+```dart
+final groups = <String, List<ModelInfo>>{};
+for (final model in await sdk.modelkit.listModels()) {
+  final title = model.source == ModelSource.app
+      ? 'App · ${model.appName ?? model.appBundleId}'
+      : model.source.wireName;
+  groups.putIfAbsent(title, () => <ModelInfo>[]).add(model);
+}
+```
+
+App models additionally report `appBundleId` and `appName` (the human-readable
+app name, for group titles; `appName` is only set when the gateway reports one,
+so fall back to `appBundleId`). Against gateways that predate `source`, or when
+it holds an unknown value, `source` is derived from the legacy flags with the
+gateway's rules.
+
 ### Use ModelKit Decision
 
 Decision models (`ModelTask.decision`, served by llama.cpp `/v1/systemone`)
@@ -507,8 +534,9 @@ for a minimal runtime and thread listing example.
 `vision` / `toolCall` / `stream` / `reasoning`). In particular,
 `capabilities.reasoning` is a `bool`. Convenience getters `hasVision`,
 `supportsChatInference`, `supportsDecisionInference` and `isVisionLanguage` are
-provided. App-registered models additionally report `isAppModel` and
-`appBundleId`.
+provided. `source` (`ModelSource`: `local` / `platform` / `custom` / `app`) is the
+mutually exclusive origin of the model. App-registered models additionally report
+`isAppModel`, `appBundleId` and `appName`.
 
 `ModelKitClient` (`ModelKitClient(apiClient: ...)`) offers the same app-model
 methods with an explicit `bearerToken:` parameter instead of the automatic app

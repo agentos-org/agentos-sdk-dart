@@ -62,6 +62,216 @@ void main() {
     });
   });
 
+  group('model source', () {
+    test('wireName matches the gateway and tryParse round-trips', () {
+      expect(ModelSource.values.map((s) => s.wireName).toList(), <String>[
+        'local',
+        'platform',
+        'custom',
+        'app',
+      ]);
+      for (final source in ModelSource.values) {
+        expect(ModelSource.tryParse(source.wireName), source);
+      }
+      expect(ModelSource.tryParse(' APP '), ModelSource.app);
+      expect(ModelSource.tryParse('system'), isNull);
+      expect(ModelSource.tryParse(''), isNull);
+      expect(ModelSource.tryParse(null), isNull);
+    });
+
+    test('derive follows the gateway rules', () {
+      ModelSource derive({
+        bool isRemote = false,
+        bool isCustom = false,
+        bool isAppModel = false,
+      }) => ModelSource.derive(
+        isRemote: isRemote,
+        isCustom: isCustom,
+        isAppModel: isAppModel,
+      );
+
+      expect(derive(), ModelSource.local);
+      expect(derive(isRemote: true), ModelSource.platform);
+      expect(derive(isRemote: true, isCustom: true), ModelSource.custom);
+      // 没有 isRemote 时，即便 isCustom 为 true 也以运行位置为准。
+      expect(derive(isCustom: true), ModelSource.local);
+      // 应用模型优先级最高。
+      expect(derive(isRemote: true, isAppModel: true), ModelSource.app);
+      expect(
+        derive(isRemote: true, isCustom: true, isAppModel: true),
+        ModelSource.app,
+      );
+    });
+
+    test('listModels reports source and appName from the gateway', () async {
+      final recorder = _RecordingInterceptor((options) {
+        return <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 'a1',
+            'name': 'local-chat',
+            'task': 'chat',
+            'isRemote': false,
+            'source': 'local',
+          },
+          <String, dynamic>{
+            'id': 'b2',
+            'name': 'platform-chat',
+            'task': 'chat',
+            'isRemote': true,
+            'source': 'platform',
+          },
+          <String, dynamic>{
+            'id': 'c3',
+            'name': 'custom-chat',
+            'task': 'chat',
+            'isRemote': true,
+            'isCustom': true,
+            'source': 'custom',
+          },
+          <String, dynamic>{
+            'id': 'chat-1@com.demo.app',
+            'name': 'app-chat',
+            'task': 'chat',
+            'isRemote': true,
+            'source': 'app',
+            'isAppModel': true,
+            'appBundleId': 'com.demo.app',
+            'appName': 'Demo App',
+          },
+        ];
+      });
+      final models = await ModelKitClient(
+        apiClient: _apiClient(recorder),
+      ).listModels();
+
+      expect(models.map((m) => m.source).toList(), <ModelSource>[
+        ModelSource.local,
+        ModelSource.platform,
+        ModelSource.custom,
+        ModelSource.app,
+      ]);
+      expect(models[3].appBundleId, 'com.demo.app');
+      expect(models[3].appName, 'Demo App');
+      for (final model in models.take(3)) {
+        expect(model.appName, isNull);
+      }
+    });
+
+    test('listModels derives source when the gateway does not send it', () async {
+      final recorder = _RecordingInterceptor((options) {
+        return <Map<String, dynamic>>[
+          <String, dynamic>{'id': 'a1', 'name': 'local', 'task': 'chat'},
+          <String, dynamic>{
+            'id': 'b2',
+            'name': 'platform',
+            'task': 'chat',
+            'isRemote': true,
+          },
+          <String, dynamic>{
+            'id': 'c3',
+            'name': 'custom',
+            'task': 'chat',
+            'isRemote': true,
+            'isCustom': true,
+          },
+          <String, dynamic>{
+            'id': 'd4',
+            'name': 'app',
+            'task': 'chat',
+            'isRemote': true,
+            'isAppModel': true,
+            'appBundleId': 'com.demo.app',
+          },
+          // 未知或空的 source 同样回退为推导。
+          <String, dynamic>{
+            'id': 'e5',
+            'name': 'unknown',
+            'task': 'chat',
+            'isRemote': true,
+            'source': 'system',
+          },
+          <String, dynamic>{
+            'id': 'f6',
+            'name': 'empty',
+            'task': 'chat',
+            'source': '',
+          },
+        ];
+      });
+      final models = await ModelKitClient(
+        apiClient: _apiClient(recorder),
+      ).listModels();
+
+      expect(models.map((m) => m.source).toList(), <ModelSource>[
+        ModelSource.local,
+        ModelSource.platform,
+        ModelSource.custom,
+        ModelSource.app,
+        ModelSource.platform,
+        ModelSource.local,
+      ]);
+      // 网关没有给出 appName 时不臆造，调用方可回退到 appBundleId。
+      expect(models[3].appName, isNull);
+    });
+
+    test('blank appName is dropped and toJson carries source/appName', () {
+      final blank = ModelInfo.fromJson(<String, dynamic>{
+        'id': 'x@com.demo.app',
+        'name': 'x',
+        'task': 'chat',
+        'isRemote': true,
+        'isAppModel': true,
+        'appBundleId': 'com.demo.app',
+        'appName': '   ',
+      });
+      expect(blank.appName, isNull);
+      expect(blank.toJson().containsKey('appName'), isFalse);
+
+      final named = ModelInfo.fromJson(<String, dynamic>{
+        'id': 'x@com.demo.app',
+        'name': 'x',
+        'task': 'chat',
+        'isRemote': true,
+        'source': 'app',
+        'isAppModel': true,
+        'appBundleId': 'com.demo.app',
+        'appName': ' Demo App ',
+      });
+      expect(named.appName, 'Demo App');
+      final json = named.toJson();
+      expect(json['source'], 'app');
+      expect(json['appName'], 'Demo App');
+
+      // 序列化结果可以原样读回。
+      final restored = ModelInfo.fromJson(json);
+      expect(restored.source, ModelSource.app);
+      expect(restored.appName, 'Demo App');
+      expect(restored.appBundleId, 'com.demo.app');
+
+      final local = ModelInfo(
+        id: 'm',
+        name: 'm',
+        alias: 'm',
+        task: ModelTask.chat,
+      );
+      expect(local.source, ModelSource.local);
+      expect(local.toJson()['source'], 'local');
+      expect(local.toJson().containsKey('appName'), isFalse);
+    });
+
+    test('an explicit source overrides the derived one', () {
+      final model = ModelInfo(
+        id: 'm',
+        name: 'm',
+        alias: 'm',
+        task: ModelTask.chat,
+        isRemote: true,
+        source: ModelSource.custom,
+      );
+      expect(model.source, ModelSource.custom);
+    });
+  });
+
   group('decision models', () {
     test('listModels keeps the decisions output modality', () async {
       final recorder = _RecordingInterceptor((options) {

@@ -87,6 +87,56 @@ class ModelCapabilities {
   };
 }
 
+/// Mutually exclusive origin of a model, as reported by the gateway's
+/// `source` field of `/modelkit/models`.
+///
+/// Group and label models by it instead of combining [ModelInfo.isRemote],
+/// [ModelInfo.isCustom] and [ModelInfo.isAppModel]. Run location (on-device vs.
+/// cloud) is secondary information and is not part of the group name.
+enum ModelSource {
+  /// Runs on this device.
+  local('local'),
+
+  /// A remote model provided by the AgentOS platform.
+  platform('platform'),
+
+  /// A remote model the user configured.
+  custom('custom'),
+
+  /// Registered by a third-party app through `/modelkit/app-models`.
+  app('app');
+
+  const ModelSource(this.wireName);
+
+  /// Wire identifier used by the agentos-api gateway.
+  final String wireName;
+
+  /// Parses a wire value (case-insensitive); returns null when [value] is
+  /// missing or not a known source.
+  static ModelSource? tryParse(String? value) {
+    if (value == null) return null;
+    final normalized = value.trim().toLowerCase();
+    for (final source in values) {
+      if (source.wireName == normalized) return source;
+    }
+    return null;
+  }
+
+  /// Derives the source from the legacy flags, with the same rules as the
+  /// gateway: an app model is always [app]; otherwise a non-remote model is
+  /// [local], a remote custom model is [custom] and any other remote model is
+  /// [platform].
+  static ModelSource derive({
+    required bool isRemote,
+    required bool isCustom,
+    required bool isAppModel,
+  }) {
+    if (isAppModel) return ModelSource.app;
+    if (!isRemote) return ModelSource.local;
+    return isCustom ? ModelSource.custom : ModelSource.platform;
+  }
+}
+
 /// Model descriptor returned by `/modelkit/models`.
 ///
 /// ModelKit classifies models by [task] and uses [inputModalities] +
@@ -105,9 +155,17 @@ class ModelInfo {
     this.capabilities = const ModelCapabilities(),
     this.isRemote = false,
     this.isCustom = false,
+    ModelSource? source,
     this.isAppModel = false,
     this.appBundleId,
-  });
+    this.appName,
+  }) : source =
+           source ??
+           ModelSource.derive(
+             isRemote: isRemote,
+             isCustom: isCustom,
+             isAppModel: isAppModel,
+           );
 
   final String id;
   final String name;
@@ -121,6 +179,14 @@ class ModelInfo {
   final bool isRemote;
   final bool isCustom;
 
+  /// Mutually exclusive origin of the model. Group and label models by it.
+  ///
+  /// Defaults to the value derived from [isRemote] / [isCustom] /
+  /// [isAppModel] (see [ModelSource.derive]) when it is not given, which is
+  /// also how [ModelInfo.fromJson] handles gateways that predate `source` or
+  /// report an unknown value.
+  final ModelSource source;
+
   /// Whether a third-party app registered this model through
   /// [ModelKitClient.registerAppModel].
   final bool isAppModel;
@@ -128,6 +194,12 @@ class ModelInfo {
   /// Bundle ID of the app that registered this model. Only present for app
   /// models.
   final String? appBundleId;
+
+  /// Human-readable name of the app that registered this model, for group
+  /// titles in model pickers (for example `App · {appName}`). Only present for
+  /// app models, and only when the gateway reports one; fall back to
+  /// [appBundleId] otherwise.
+  final String? appName;
 
   bool get hasVision =>
       capabilities.vision ||
@@ -162,9 +234,17 @@ class ModelInfo {
       ),
       isRemote: json['isRemote'] as bool? ?? false,
       isCustom: json['isCustom'] as bool? ?? false,
+      // 缺失或未知的 source 由构造函数按布尔字段推导。
+      source: ModelSource.tryParse(json['source']?.toString()),
       isAppModel: json['isAppModel'] as bool? ?? false,
       appBundleId: json['appBundleId']?.toString(),
+      appName: _nonEmptyOrNull(json['appName']),
     );
+  }
+
+  static String? _nonEmptyOrNull(Object? value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -179,8 +259,10 @@ class ModelInfo {
     'capabilities': capabilities.toJson(),
     'isRemote': isRemote,
     if (isCustom) 'isCustom': true,
+    'source': source.wireName,
     if (isAppModel) 'isAppModel': true,
     'appBundleId': ?appBundleId,
+    'appName': ?appName,
   };
 
   static List<Modality> _parseModalities(dynamic value) {

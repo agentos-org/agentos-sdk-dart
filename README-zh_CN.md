@@ -153,6 +153,30 @@ print(completion.choices.first.message.content?.first.text);
 
 `sdk.modelkit` 返回的是 `ModelInfo`，以 `task` + `capabilities` 分类。
 
+每个 `ModelInfo` 还带有 `source`（`ModelSource`），表示模型互斥的来源。请按它分组/
+打标签，而不要再组合 `isRemote` / `isCustom` / `isAppModel` 自行推导：
+
+| `ModelSource` | 含义 | 建议分组 |
+| --- | --- | --- |
+| `local` | 在本机运行 | 本地模型 |
+| `platform` | AgentOS 平台提供的远端模型 | 平台模型 |
+| `custom` | 用户自行配置的远端模型 | 自定义模型 |
+| `app` | 第三方 app 注册的模型 | `App · {appName}`（每个 app 一组） |
+
+```dart
+final groups = <String, List<ModelInfo>>{};
+for (final model in await sdk.modelkit.listModels()) {
+  final title = model.source == ModelSource.app
+      ? 'App · ${model.appName ?? model.appBundleId}'
+      : model.source.wireName;
+  groups.putIfAbsent(title, () => <ModelInfo>[]).add(model);
+}
+```
+
+app 模型还会带有 `appBundleId` 与 `appName`（app 的可读名称，用作分组标题；
+`appName` 仅在网关返回时才有值，缺失时请回退到 `appBundleId`）。对于尚未提供
+`source` 的旧网关，或 `source` 为未知值时，会按网关的规则由旧布尔字段推导。
+
 ### 使用 ModelKit Decision
 
 Decision 模型（`ModelTask.decision`，由 llama.cpp `/v1/systemone` 提供）不生成
@@ -489,7 +513,8 @@ if (result.isFailure) {
 （`Modality`）以及 `capabilities`（`ModelCapabilities`：`vision` / `toolCall` /
 `stream` / `reasoning`）描述每个模型，并提供 `hasVision`、
 `supportsChatInference`、`supportsDecisionInference`、`isVisionLanguage` 等便捷
-getter。App 注册的模型还会带有 `isAppModel` 与 `appBundleId`。
+getter。`source`（`ModelSource`：`local` / `platform` / `custom` / `app`）是模型互斥的
+来源。App 注册的模型还会带有 `isAppModel`、`appBundleId` 与 `appName`。
 
 `ModelKitClient`（`ModelKitClient(apiClient: ...)`）提供同样的 app model 方法，
 但需要显式传入 `bearerToken:`，而不是自动使用 app token。

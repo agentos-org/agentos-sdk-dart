@@ -24,6 +24,14 @@
   id is a `404`.
 - feat: `ModelInfo` now reports `isAppModel` and `appBundleId` for models
   registered by apps.
+- feat: `ModelInfo` now reports `source` (`ModelSource`: `local` / `platform` /
+  `custom` / `app`), the gateway's mutually exclusive model origin, and `appName`
+  for app models. Group and label models by `source` (for example
+  `App · {appName}`) instead of combining `isRemote` / `isCustom` /
+  `isAppModel`. `ModelInfo.fromJson` derives `source` from those flags with the
+  gateway's rules when the gateway predates `source` or reports an unknown
+  value, and `ModelInfo(...)` does the same when `source` is omitted, so
+  existing constructor calls keep working. `toJson` always writes `source`.
 - fix: models with `decisions` output are no longer reported as `text` output.
 
 ## 0.8.0
