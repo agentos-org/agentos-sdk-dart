@@ -13,15 +13,17 @@
   `toggleAppModel` for `/modelkit/app-models`. Write calls reuse the app token
   from `registerBundle` and refresh it once on `401`. `ModelKitClient` exposes
   the same methods with an explicit `bearerToken`.
-- feat: app models use namespaced IDs. The gateway exposes a registered model as
-  `<id>@<bundleId>`; `AppModel.qualifiedId` and
-  `AppModelWriteResult.qualifiedId` carry it (store it and use it as `model` in
-  requests). `AppModel.qualifiedId` falls back to `id` for gateways that predate
-  namespaced IDs. `id` only has to be unique within the app, and registration
-  now rejects ids outside `[A-Za-z0-9._-]` (64 characters) with `400`. A `409`
-  now means the `name` is already used by another model of the same app; an id
-  that belongs to another app no longer conflicts, and updating/removing such an
-  id is a `404`.
+- feat: the gateway generates app model IDs. `AppModelRegistration` takes no
+  `id`; the gateway derives a 12-character hashid from the app's bundle ID and
+  the model `name` and returns it as `AppModelWriteResult.id`. Store it: it is
+  the `modelId` of `updateAppModel` / `unregisterAppModel` / `toggleAppModel`
+  (looked up only among the calling app's models, otherwise `404`) and the
+  `model` of requests. `AppModel.id` and `ModelInfo.id` report the same value.
+  A model's `name` is unique within its app: registering an existing `name`
+  replaces that model and keeps its id (`updated == true`), and renaming through
+  `updateAppModel` keeps the id. A `409` means the id derived from `name` is
+  still held by a renamed model of the same app, or `updateAppModel` renames a
+  model to a `name` another model of the app already uses.
 - feat: `ModelInfo` now reports `isAppModel` and `appBundleId` for models
   registered by apps.
 - feat: `ModelInfo` now reports `source` (`ModelSource`: `local` / `platform` /

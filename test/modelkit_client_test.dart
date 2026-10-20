@@ -157,62 +157,65 @@ void main() {
       }
     });
 
-    test('listModels derives source when the gateway does not send it', () async {
-      final recorder = _RecordingInterceptor((options) {
-        return <Map<String, dynamic>>[
-          <String, dynamic>{'id': 'a1', 'name': 'local', 'task': 'chat'},
-          <String, dynamic>{
-            'id': 'b2',
-            'name': 'platform',
-            'task': 'chat',
-            'isRemote': true,
-          },
-          <String, dynamic>{
-            'id': 'c3',
-            'name': 'custom',
-            'task': 'chat',
-            'isRemote': true,
-            'isCustom': true,
-          },
-          <String, dynamic>{
-            'id': 'd4',
-            'name': 'app',
-            'task': 'chat',
-            'isRemote': true,
-            'isAppModel': true,
-            'appBundleId': 'com.demo.app',
-          },
-          // 未知或空的 source 同样回退为推导。
-          <String, dynamic>{
-            'id': 'e5',
-            'name': 'unknown',
-            'task': 'chat',
-            'isRemote': true,
-            'source': 'system',
-          },
-          <String, dynamic>{
-            'id': 'f6',
-            'name': 'empty',
-            'task': 'chat',
-            'source': '',
-          },
-        ];
-      });
-      final models = await ModelKitClient(
-        apiClient: _apiClient(recorder),
-      ).listModels();
+    test(
+      'listModels derives source when the gateway does not send it',
+      () async {
+        final recorder = _RecordingInterceptor((options) {
+          return <Map<String, dynamic>>[
+            <String, dynamic>{'id': 'a1', 'name': 'local', 'task': 'chat'},
+            <String, dynamic>{
+              'id': 'b2',
+              'name': 'platform',
+              'task': 'chat',
+              'isRemote': true,
+            },
+            <String, dynamic>{
+              'id': 'c3',
+              'name': 'custom',
+              'task': 'chat',
+              'isRemote': true,
+              'isCustom': true,
+            },
+            <String, dynamic>{
+              'id': 'd4',
+              'name': 'app',
+              'task': 'chat',
+              'isRemote': true,
+              'isAppModel': true,
+              'appBundleId': 'com.demo.app',
+            },
+            // 未知或空的 source 同样回退为推导。
+            <String, dynamic>{
+              'id': 'e5',
+              'name': 'unknown',
+              'task': 'chat',
+              'isRemote': true,
+              'source': 'system',
+            },
+            <String, dynamic>{
+              'id': 'f6',
+              'name': 'empty',
+              'task': 'chat',
+              'source': '',
+            },
+          ];
+        });
+        final models = await ModelKitClient(
+          apiClient: _apiClient(recorder),
+        ).listModels();
 
-      expect(models.map((m) => m.source).toList(), <ModelSource>[
-        ModelSource.local,
-        ModelSource.platform,
-        ModelSource.custom,
-        ModelSource.app,
-        ModelSource.platform,
-        ModelSource.local,
-      ]);
-      // 网关没有给出 appName 时不臆造，调用方可回退到 appBundleId。
-      expect(models[3].appName, isNull);
-    });
+        expect(models.map((m) => m.source).toList(), <ModelSource>[
+          ModelSource.local,
+          ModelSource.platform,
+          ModelSource.custom,
+          ModelSource.app,
+          ModelSource.platform,
+          ModelSource.local,
+        ]);
+        // 网关没有给出 appName 时不臆造，调用方可回退到 appBundleId。
+        expect(models[3].appName, isNull);
+      },
+    );
 
     test('blank appName is dropped and toJson carries source/appName', () {
       final blank = ModelInfo.fromJson(<String, dynamic>{
@@ -521,8 +524,7 @@ void main() {
       final recorder = _RecordingInterceptor((options) {
         return <Map<String, dynamic>>[
           <String, dynamic>{
-            'id': 'app-model-1',
-            'qualifiedId': 'app-model-1@com.demo.app',
+            'id': '6f78dcce6717',
             'name': 'router',
             'alias': 'router',
             'description': 'routes requests',
@@ -554,8 +556,7 @@ void main() {
       expect(request.headers.containsKey('authorization'), isFalse);
 
       final model = models.single;
-      expect(model.id, 'app-model-1');
-      expect(model.qualifiedId, 'app-model-1@com.demo.app');
+      expect(model.id, '6f78dcce6717');
       expect(model.task, ModelTask.decision);
       expect(model.outputModalities, <Modality>[Modality.decisions]);
       expect(model.capabilities.stream, isFalse);
@@ -568,43 +569,16 @@ void main() {
     });
 
     test(
-      'listAppModels falls back to the bare id when the gateway predates '
-      'qualifiedId',
+      'registerAppModel sends no model id and returns the generated one',
       () async {
         final recorder = _RecordingInterceptor(
-          (options) => <Map<String, dynamic>>[
-            <String, dynamic>{
-              'id': 'legacy-1',
-              'name': 'legacy',
-              'appBundleId': 'com.demo.app',
-            },
-          ],
-        );
-        final models = await ModelKitClient(
-          apiClient: _apiClient(recorder),
-        ).listAppModels();
-
-        expect(models.single.id, 'legacy-1');
-        expect(models.single.qualifiedId, 'legacy-1');
-      },
-    );
-
-    test(
-      'registerAppModel sends the bearer token and a minimal body',
-      () async {
-        final recorder = _RecordingInterceptor(
-          (options) => <String, dynamic>{
-            'success': true,
-            'id': 'router',
-            'qualifiedId': 'router@com.demo.app',
-          },
+          (options) => <String, dynamic>{'success': true, 'id': '6f78dcce6717'},
         );
         final client = ModelKitClient(apiClient: _apiClient(recorder));
 
         final result = await client.registerAppModel(
           bearerToken: 'token-1',
           request: const AppModelRegistration(
-            id: 'router',
             name: 'router',
             task: ModelTask.decision,
             baseUrl: 'http://127.0.0.1:9000',
@@ -617,15 +591,13 @@ void main() {
         expect(request.path, '/modelkit/app-models');
         expect(request.headers['authorization'], 'Bearer token-1');
         expect(request.data, <String, dynamic>{
-          'id': 'router',
           'name': 'router',
           'task': 'decision',
           'baseUrl': 'http://127.0.0.1:9000',
           'apiKey': 'secret',
         });
         expect(result.success, isTrue);
-        expect(result.id, 'router');
-        expect(result.qualifiedId, 'router@com.demo.app');
+        expect(result.id, '6f78dcce6717');
         expect(result.updated, isFalse);
       },
     );
@@ -636,7 +608,7 @@ void main() {
         final recorder = _RecordingInterceptor(
           (options) => <String, dynamic>{
             'success': true,
-            'id': 'chat-1',
+            'id': 'b35bf2726675',
             'updated': true,
           },
         );
@@ -645,7 +617,6 @@ void main() {
         final result = await client.registerAppModel(
           bearerToken: 'token-1',
           request: const AppModelRegistration(
-            id: 'chat-1',
             name: 'chat',
             alias: 'Chat',
             description: 'd',
@@ -663,7 +634,6 @@ void main() {
         );
 
         expect(recorder.requests.single.data, <String, dynamic>{
-          'id': 'chat-1',
           'name': 'chat',
           'alias': 'Chat',
           'description': 'd',
@@ -680,6 +650,7 @@ void main() {
           'appBundleId': 'com.demo.app',
           'appName': 'Demo',
         });
+        expect(result.id, 'b35bf2726675');
         expect(result.updated, isTrue);
       },
     );
@@ -695,7 +666,7 @@ void main() {
       await expectLater(
         client.registerAppModel(
           bearerToken: 'token-1',
-          request: const AppModelRegistration(id: 'x', name: 'x'),
+          request: const AppModelRegistration(name: 'x'),
         ),
         throwsA(
           isA<DioException>().having(
@@ -707,7 +678,7 @@ void main() {
       );
     });
 
-    test('updateAppModel sends a partial body to the encoded path', () async {
+    test('updateAppModel sends a partial body to the id path', () async {
       final recorder = _RecordingInterceptor(
         (options) => <String, dynamic>{'success': true},
       );
@@ -715,7 +686,7 @@ void main() {
 
       final result = await client.updateAppModel(
         bearerToken: 'token-1',
-        modelId: 'team/router 1',
+        modelId: '6f78dcce6717',
         request: const AppModelUpdate(
           name: 'renamed',
           task: ModelTask.decision,
@@ -725,7 +696,7 @@ void main() {
 
       final request = recorder.requests.single;
       expect(request.method, 'PUT');
-      expect(request.path, '/modelkit/app-models/team%2Frouter%201');
+      expect(request.path, '/modelkit/app-models/6f78dcce6717');
       expect(request.headers['authorization'], 'Bearer token-1');
       expect(request.data, <String, dynamic>{
         'name': 'renamed',
@@ -744,17 +715,23 @@ void main() {
         );
         final client = ModelKitClient(apiClient: _apiClient(recorder));
 
-        await client.unregisterAppModel(bearerToken: 'token-1', modelId: 'm1');
-        await client.toggleAppModel(bearerToken: 'token-1', modelId: 'm1');
+        await client.unregisterAppModel(
+          bearerToken: 'token-1',
+          modelId: '6f78dcce6717',
+        );
+        await client.toggleAppModel(
+          bearerToken: 'token-1',
+          modelId: '6f78dcce6717',
+        );
 
         final delete = recorder.requests[0];
         expect(delete.method, 'DELETE');
-        expect(delete.path, '/modelkit/app-models/m1');
+        expect(delete.path, '/modelkit/app-models/6f78dcce6717');
         expect(delete.headers['authorization'], 'Bearer token-1');
 
         final toggle = recorder.requests[1];
         expect(toggle.method, 'POST');
-        expect(toggle.path, '/modelkit/app-models/m1/toggle');
+        expect(toggle.path, '/modelkit/app-models/6f78dcce6717/toggle');
         expect(toggle.headers['authorization'], 'Bearer token-1');
         expect(toggle.data, isNull);
       },
@@ -767,20 +744,20 @@ void main() {
         if (options.path == '/appkit/register') {
           return <String, dynamic>{'token': 'token-v1'};
         }
-        return <String, dynamic>{'success': true, 'id': 'router'};
+        return <String, dynamic>{'success': true, 'id': '6f78dcce6717'};
       });
       final sdk = AgentOSSDK(apiClient: _apiClient(recorder));
       await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
 
       await sdk.modelkit.registerAppModel(
-        request: const AppModelRegistration(id: 'router', name: 'router'),
+        request: const AppModelRegistration(name: 'router'),
       );
       await sdk.modelkit.updateAppModel(
-        modelId: 'router',
+        modelId: '6f78dcce6717',
         request: const AppModelUpdate(name: 'r2'),
       );
-      await sdk.modelkit.toggleAppModel(modelId: 'router');
-      await sdk.modelkit.unregisterAppModel(modelId: 'router');
+      await sdk.modelkit.toggleAppModel(modelId: '6f78dcce6717');
+      await sdk.modelkit.unregisterAppModel(modelId: '6f78dcce6717');
 
       final writes = recorder.requests
           .where((r) => r.path.startsWith('/modelkit/app-models'))
@@ -808,16 +785,16 @@ void main() {
             'error': 'unauthorized',
           });
         }
-        return <String, dynamic>{'success': true, 'id': 'router'};
+        return <String, dynamic>{'success': true, 'id': '6f78dcce6717'};
       });
       final sdk = AgentOSSDK(apiClient: _apiClient(recorder));
       await sdk.agentos.registerBundle(bundleId: 'com.demo.app');
 
       final result = await sdk.modelkit.registerAppModel(
-        request: const AppModelRegistration(id: 'router', name: 'router'),
+        request: const AppModelRegistration(name: 'router'),
       );
 
-      expect(result.id, 'router');
+      expect(result.id, '6f78dcce6717');
       expect(registerCount, 2);
       final attempts = recorder.requests
           .where((r) => r.path == '/modelkit/app-models')
@@ -831,7 +808,7 @@ void main() {
       final sdk = AgentOSSDK(apiClient: _apiClient(recorder));
 
       await expectLater(
-        sdk.modelkit.toggleAppModel(modelId: 'router'),
+        sdk.modelkit.toggleAppModel(modelId: '6f78dcce6717'),
         throwsA(isA<StateError>()),
       );
       expect(recorder.requests, isEmpty);

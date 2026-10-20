@@ -234,10 +234,9 @@ owning `appBundleId`.
 ```dart
 await sdk.agentos.registerBundle(bundleId: 'com.example.app');
 
-// Register (or replace) a model. Only `id` and `name` are required.
+// Register (or replace) a model. Only `name` is required.
 final result = await sdk.modelkit.registerAppModel(
   request: const AppModelRegistration(
-    id: 'my-router',
     name: 'my-router',
     task: ModelTask.decision,
     baseUrl: 'http://127.0.0.1:9000',
@@ -246,33 +245,38 @@ final result = await sdk.modelkit.registerAppModel(
 );
 print(result.updated); // true when an existing model of this app was replaced
 
-// The `id` only has to be unique within your app. The gateway exposes the model
-// as `<id>@<bundleId>`; store it and use it as `model` in requests so they are
-// routed to exactly this model.
-final modelId = result.qualifiedId ?? result.id; // 'my-router@com.example.app'
+// The gateway generates the model id (12 characters, derived from your bundle ID
+// and the model `name`). Store it: it maintains the model below and is the
+// `model` of requests that must be routed to exactly this model.
+final modelId = result.id!; // e.g. '6f78dcce6717'
 
 // Partial update: unset fields stay unchanged.
 await sdk.modelkit.updateAppModel(
-  modelId: 'my-router',
+  modelId: modelId,
   request: const AppModelUpdate(description: 'Routes support tickets'),
 );
 
 // Enable/disable without deleting.
-await sdk.modelkit.toggleAppModel(modelId: 'my-router');
+await sdk.modelkit.toggleAppModel(modelId: modelId);
 
 // List every app-registered model (public, no token needed).
 final appModels = await sdk.modelkit.listAppModels();
-print(appModels.map((m) => '${m.qualifiedId} by ${m.appBundleId} disabled=${m.isDisabled}'));
+print(appModels.map((m) => '${m.id} by ${m.appBundleId} disabled=${m.isDisabled}'));
 
-await sdk.modelkit.unregisterAppModel(modelId: 'my-router');
+await sdk.modelkit.unregisterAppModel(modelId: modelId);
 ```
 
 Write calls attach the app token automatically and refresh it once on `401`.
 They throw a `DioException` carrying the server status: `401` invalid token,
 `403` `appBundleId` mismatch, `404` unknown id (ids are looked up only among your
-own app's models), `409` the `name` is already used by another model of your
-app, `400` invalid body, unknown `task`, or an `id` / bundle ID outside
-`[A-Za-z0-9._-]` (limits: 64 / 128 characters).
+own app's models), `409` the id derived from `name` is still held by a renamed
+model of your app (or `update` renames a model to a `name` another model of your
+app already uses), `400` invalid body, missing `name`, unknown `task`, or a
+bundle ID outside `[A-Za-z0-9._-]` (limit: 128 characters).
+
+A model's `name` is unique within your app: registering a `name` you already
+registered replaces that model and returns the same id. Renaming a model with
+`updateAppModel` keeps its id.
 
 Decision models are normalized by the server: input `text` (+ optional
 `image`), output `decisions`, and `stream` / `tool_call` / `reasoning` all

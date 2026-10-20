@@ -228,43 +228,46 @@ App 可以把自己的模型注册到网关。注册后的模型会出现在 `li
 ```dart
 await sdk.agentos.registerBundle(bundleId: 'com.example.app');
 
-// 注册（或替换）模型，只有 `id` 和 `name` 必填。
+// 注册（或替换）模型，只有 `name` 必填。
 final result = await sdk.modelkit.registerAppModel(
   request: const AppModelRegistration(
-    id: 'my-router',
     name: 'my-router',
     task: ModelTask.decision,
     baseUrl: 'http://127.0.0.1:9000',
     apiKey: 'upstream-secret', // 由服务端保存，不会再返回
   ),
 );
-print(result.updated); // 替换了该 app 已有的同 id 模型时为 true
+print(result.updated); // 替换了该 app 已有的同名模型时为 true
 
-// `id` 只需在你的 app 内唯一。网关对外把该模型暴露为 `<id>@<bundleId>`；
-// 请保存它并在请求的 `model` 里使用，就能精确路由到这个模型。
-final modelId = result.qualifiedId ?? result.id; // 'my-router@com.example.app'
+// 模型 id 由网关生成（12 位，基于你的 bundle ID 与模型 `name`）。请保存它：
+// 下面的维护接口都用它，请求的 `model` 里使用它就能精确路由到这个模型。
+final modelId = result.id!; // 例如 '6f78dcce6717'
 
 // 局部更新：未设置的字段保持不变。
 await sdk.modelkit.updateAppModel(
-  modelId: 'my-router',
+  modelId: modelId,
   request: const AppModelUpdate(description: '分流客服工单'),
 );
 
 // 启用/停用，无需删除。
-await sdk.modelkit.toggleAppModel(modelId: 'my-router');
+await sdk.modelkit.toggleAppModel(modelId: modelId);
 
 // 列出所有 app 注册的模型（公开接口，无需 token）。
 final appModels = await sdk.modelkit.listAppModels();
-print(appModels.map((m) => '${m.qualifiedId} by ${m.appBundleId} disabled=${m.isDisabled}'));
+print(appModels.map((m) => '${m.id} by ${m.appBundleId} disabled=${m.isDisabled}'));
 
-await sdk.modelkit.unregisterAppModel(modelId: 'my-router');
+await sdk.modelkit.unregisterAppModel(modelId: modelId);
 ```
 
 写操作会自动附带 app token，并在 `401` 时刷新一次。失败时抛出带服务端状态码的
 `DioException`：`401` token 无效，`403` `appBundleId` 不匹配，`404` id 不存在
-（id 只在你自己 app 的模型里查找），`409` `name` 与你 app 下另一个模型重名，
-`400` 请求体非法、`task` 未知，或 `id` / bundle ID 含 `[A-Za-z0-9._-]` 以外的字符
-（长度上限 64 / 128）。
+（id 只在你自己 app 的模型里查找），`409` 由 `name` 生成的 id 仍被你 app 里一个
+已改名的模型占用（或 `update` 把模型改成你 app 下另一个模型已用的 `name`），
+`400` 请求体非法、缺少 `name`、`task` 未知，或 bundle ID 含 `[A-Za-z0-9._-]` 以外
+的字符（长度上限 128）。
+
+模型 `name` 在你的 app 内唯一：注册已注册过的 `name` 会替换该模型并返回同一个
+id；用 `updateAppModel` 改名时 id 保持不变。
 
 Decision 模型会被服务端规范化：输入为 `text`（可选 `image`），输出为
 `decisions`，`stream` / `tool_call` / `reasoning` 均为 `false`。
