@@ -217,6 +217,28 @@ void main() {
       },
     );
 
+    test('maxOutputTokens is parsed, serialized and omitted when absent', () {
+      final withMax = ModelInfo.fromJson(<String, dynamic>{
+        'id': 'm1',
+        'name': 'm1',
+        'task': 'chat',
+        'contextWindowSize': 32768,
+        'maxOutputTokens': 4096,
+      });
+      expect(withMax.contextWindowSize, 32768);
+      expect(withMax.maxOutputTokens, 4096);
+      expect(withMax.toJson()['maxOutputTokens'], 4096);
+      expect(ModelInfo.fromJson(withMax.toJson()).maxOutputTokens, 4096);
+
+      final withoutMax = ModelInfo.fromJson(<String, dynamic>{
+        'id': 'm2',
+        'name': 'm2',
+        'task': 'chat',
+      });
+      expect(withoutMax.maxOutputTokens, isNull);
+      expect(withoutMax.toJson().containsKey('maxOutputTokens'), isFalse);
+    });
+
     test('blank appName is dropped and toJson carries source/appName', () {
       final blank = ModelInfo.fromJson(<String, dynamic>{
         'id': 'x@com.demo.app',
@@ -540,6 +562,7 @@ void main() {
             'baseUrl': 'http://127.0.0.1:9000',
             'hasApiKey': true,
             'contextWindowSize': 8192,
+            'maxOutputTokens': 4096,
             'isDisabled': true,
             'appBundleId': 'com.demo.app',
             'appName': 'Demo',
@@ -563,6 +586,7 @@ void main() {
       expect(model.baseUrl, 'http://127.0.0.1:9000');
       expect(model.hasApiKey, isTrue);
       expect(model.contextWindowSize, 8192);
+      expect(model.maxOutputTokens, 4096);
       expect(model.isDisabled, isTrue);
       expect(model.appBundleId, 'com.demo.app');
       expect(model.appName, 'Demo');
@@ -628,6 +652,7 @@ void main() {
             toolCall: true,
             reasoning: false,
             contextWindowSize: 32768,
+            maxOutputTokens: 4096,
             appBundleId: 'com.demo.app',
             appName: 'Demo',
           ),
@@ -647,6 +672,7 @@ void main() {
             'reasoning': false,
           },
           'contextWindowSize': 32768,
+          'maxOutputTokens': 4096,
           'appBundleId': 'com.demo.app',
           'appName': 'Demo',
         });
@@ -691,6 +717,7 @@ void main() {
           name: 'renamed',
           task: ModelTask.decision,
           reasoning: false,
+          maxOutputTokens: 2048,
         ),
       );
 
@@ -702,6 +729,7 @@ void main() {
         'name': 'renamed',
         'task': 'decision',
         'capabilities': <String, dynamic>{'reasoning': false},
+        'maxOutputTokens': 2048,
       });
       expect(result.success, isTrue);
       expect(result.id, isNull);

@@ -182,6 +182,16 @@ so fall back to `appBundleId`). Against gateways that predate `source`, or when
 it holds an unknown value, `source` is derived from the legacy flags with the
 gateway's rules.
 
+`ModelInfo` also reports `contextWindowSize` and `maxOutputTokens` (the maximum
+number of tokens the model can generate in one response) when the gateway knows
+them, and `null` otherwise. Only chat models report `maxOutputTokens`
+(embedding, ASR, TTS and decision models do not generate text, so it is `null`
+for them); a chat model that reports `contextWindowSize` reports
+`maxOutputTokens` too, using the same number when it has no value of its own.
+Apps can set both when registering a model with
+`AppModelRegistration(contextWindowSize: 32768, maxOutputTokens: 4096)`;
+`AppModel` reports them back, and `AppModelUpdate` can change them.
+
 ### Use ModelKit Decision
 
 Decision models (`ModelTask.decision`, served by llama.cpp `/v1/systemone`)

@@ -1,5 +1,8 @@
 ## 0.9.0
 
+- feat: add `maxOutputTokens` (the maximum number of tokens a model can generate
+  in one response, the platform's `maxTokens`) to `ModelInfo` and `AppModel`, and
+  to the `AppModelRegistration` / `AppModelUpdate` request bodies.
 - feat: add HarnessKit runtime, thread, run, command, result, and operational
   snapshot APIs with AppKit token handling and resumable SSE events.
 - feat: return rejected HarnessKit command receipts from HTTP 400 responses.

@@ -150,6 +150,7 @@ class ModelInfo {
     this.description,
     required this.task,
     this.contextWindowSize,
+    this.maxOutputTokens,
     this.inputModalities = const [Modality.text],
     this.outputModalities = const [Modality.text],
     this.capabilities = const ModelCapabilities(),
@@ -173,6 +174,12 @@ class ModelInfo {
   final String? description;
   final ModelTask task;
   final int? contextWindowSize;
+
+  /// Maximum number of tokens the model can generate in one response, when the
+  /// gateway reports it. Only chat models report it; it is `null` for
+  /// embedding, ASR, TTS and decision models. Never larger than
+  /// [contextWindowSize] for local models.
+  final int? maxOutputTokens;
   final List<Modality> inputModalities;
   final List<Modality> outputModalities;
   final ModelCapabilities capabilities;
@@ -227,6 +234,7 @@ class ModelInfo {
       description: json['description']?.toString(),
       task: task,
       contextWindowSize: (json['contextWindowSize'] as num?)?.toInt(),
+      maxOutputTokens: (json['maxOutputTokens'] as num?)?.toInt(),
       inputModalities: _parseModalities(json['input']),
       outputModalities: _parseModalities(json['output']),
       capabilities: ModelCapabilities.fromJson(
@@ -254,6 +262,7 @@ class ModelInfo {
     if (description != null) 'description': description,
     'task': task.wireName,
     if (contextWindowSize != null) 'contextWindowSize': contextWindowSize,
+    if (maxOutputTokens != null) 'maxOutputTokens': maxOutputTokens,
     'input': inputModalities.map((m) => m.wireName).toList(),
     'output': outputModalities.map((m) => m.wireName).toList(),
     'capabilities': capabilities.toJson(),
@@ -487,6 +496,7 @@ class AppModel {
     this.baseUrl,
     this.hasApiKey = false,
     this.contextWindowSize,
+    this.maxOutputTokens,
     this.isDisabled = false,
     required this.appBundleId,
     this.appName = '',
@@ -511,6 +521,7 @@ class AppModel {
       baseUrl: json['baseUrl']?.toString(),
       hasApiKey: json['hasApiKey'] as bool? ?? false,
       contextWindowSize: (json['contextWindowSize'] as num?)?.toInt(),
+      maxOutputTokens: (json['maxOutputTokens'] as num?)?.toInt(),
       isDisabled: json['isDisabled'] as bool? ?? false,
       appBundleId: json['appBundleId']?.toString() ?? '',
       appName: json['appName']?.toString() ?? '',
@@ -539,6 +550,9 @@ class AppModel {
   /// exposed).
   final bool hasApiKey;
   final int? contextWindowSize;
+
+  /// Maximum number of tokens the model can generate in one response.
+  final int? maxOutputTokens;
 
   /// Disabled models stay registered but are hidden from model lists.
   final bool isDisabled;
@@ -571,6 +585,7 @@ class AppModelRegistration {
     this.baseUrl,
     this.apiKey,
     this.contextWindowSize,
+    this.maxOutputTokens,
     this.appBundleId,
     this.appName,
   });
@@ -597,6 +612,10 @@ class AppModelRegistration {
   final String? apiKey;
   final int? contextWindowSize;
 
+  /// Maximum number of tokens the model can generate in one response. Omitted
+  /// from the request when unset.
+  final int? maxOutputTokens;
+
   /// Must match the bundle ID of the bearer token when provided.
   final String? appBundleId;
   final String? appName;
@@ -613,6 +632,7 @@ class AppModelRegistration {
     'baseUrl': ?baseUrl,
     'apiKey': ?apiKey,
     'contextWindowSize': ?contextWindowSize,
+    'maxOutputTokens': ?maxOutputTokens,
     'appBundleId': ?appBundleId,
     'appName': ?appName,
   };
@@ -639,6 +659,7 @@ class AppModelUpdate {
     this.baseUrl,
     this.apiKey,
     this.contextWindowSize,
+    this.maxOutputTokens,
     this.appName,
   });
 
@@ -655,6 +676,7 @@ class AppModelUpdate {
   final String? baseUrl;
   final String? apiKey;
   final int? contextWindowSize;
+  final int? maxOutputTokens;
   final String? appName;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -669,6 +691,7 @@ class AppModelUpdate {
     'baseUrl': ?baseUrl,
     'apiKey': ?apiKey,
     'contextWindowSize': ?contextWindowSize,
+    'maxOutputTokens': ?maxOutputTokens,
     'appName': ?appName,
   };
 }
