@@ -7,6 +7,26 @@ import 'package:agentos_sdk/src/utils/api_client.dart';
 import 'package:dio/dio.dart';
 import 'package:test/test.dart';
 
+const _privateToolsRegistration = HarnessKitPrivateToolsRegistration(
+  endpoint: 'http://127.0.0.1:8123/',
+  token: '12345678-1234-1234-1234-123456789abc',
+  specification: <String, dynamic>{
+    'opentool': '1.0.0',
+    'info': <String, dynamic>{'title': 'App tools', 'version': '1.0.0'},
+    'functions': <Map<String, dynamic>>[
+      <String, dynamic>{
+        'name': 'list_assets',
+        'description': 'List assets',
+        'parameters': <dynamic>[],
+        'return': <String, dynamic>{
+          'name': 'result',
+          'schema': <String, dynamic>{'type': 'object'},
+        },
+      },
+    ],
+  },
+);
+
 void main() {
   group('HarnessKitModule', () {
     test('uses the AppKit token for runtime and thread requests', () async {
@@ -103,6 +123,90 @@ void main() {
       );
     });
 
+    test('registers private tools for the encoded thread', () async {
+      final interceptor = _HarnessKitInterceptor();
+      final sdk = _buildSdk(interceptor);
+      addTearDown(sdk.dispose);
+      await sdk.agentos.registerBundle(bundleId: 'com.example.harness');
+
+      final result = await sdk.harnesskit.registerPrivateTools(
+        threadId: 'thread/a',
+        registration: _privateToolsRegistration,
+      );
+
+      expect(result.toolId, 'app-private:abc123');
+      final request = interceptor.requests.last;
+      expect(request.method, 'PUT');
+      expect(request.path, '/harnesskit/v1/threads/thread%2Fa/private-tools');
+      expect(
+        request.headers[HttpHeaders.authorizationHeader],
+        'Bearer token-1',
+      );
+      expect(request.data, <String, dynamic>{
+        'endpoint': 'http://127.0.0.1:8123/',
+        'token': '12345678-1234-1234-1234-123456789abc',
+        'specification': _privateToolsRegistration.specification,
+      });
+    });
+
+    test(
+      'refreshes AppKit credentials without changing the callback token',
+      () async {
+        final interceptor = _HarnessKitInterceptor(
+          expireFirstPrivateToolsToken: true,
+        );
+        final sdk = _buildSdk(interceptor);
+        addTearDown(sdk.dispose);
+        await sdk.agentos.registerBundle(bundleId: 'com.example.harness');
+
+        final result = await sdk.harnesskit.registerPrivateTools(
+          threadId: 'thread-1',
+          registration: _privateToolsRegistration,
+        );
+
+        expect(result.toolId, 'app-private:abc123');
+        expect(interceptor.registrationCount, 2);
+        final requests = interceptor.requests
+            .where((request) => request.path.endsWith('/private-tools'))
+            .toList();
+        expect(requests, hasLength(2));
+        expect(
+          requests.map(
+            (request) => request.headers[HttpHeaders.authorizationHeader],
+          ),
+          <String>['Bearer token-1', 'Bearer token-2'],
+        );
+        expect(requests.map((request) => request.data['token']), <String>[
+          _privateToolsRegistration.token,
+          _privateToolsRegistration.token,
+        ]);
+        expect(requests.last.data, requests.first.data);
+      },
+    );
+
+    test('propagates private tool access denial without refreshing', () async {
+      final interceptor = _HarnessKitInterceptor(forbidPrivateTools: true);
+      final sdk = _buildSdk(interceptor);
+      addTearDown(sdk.dispose);
+      await sdk.agentos.registerBundle(bundleId: 'com.example.harness');
+
+      await expectLater(
+        sdk.harnesskit.registerPrivateTools(
+          threadId: 'thread-1',
+          registration: _privateToolsRegistration,
+        ),
+        throwsA(
+          isA<DioException>().having(
+            (error) => error.response?.statusCode,
+            'status code',
+            HttpStatus.forbidden,
+          ),
+        ),
+      );
+      expect(interceptor.registrationCount, 1);
+      expect(interceptor.privateToolsRequestCount, 1);
+    });
+
     test('omits unspecified model config fields and preserves extensions', () {
       final request = HarnessKitRunRequest(
         requestId: 'request-1',
@@ -130,13 +234,18 @@ class _HarnessKitInterceptor extends Interceptor {
   _HarnessKitInterceptor({
     this.rejectCommand = false,
     this.expireFirstRuntimeToken = false,
+    this.expireFirstPrivateToolsToken = false,
+    this.forbidPrivateTools = false,
   });
 
   final bool rejectCommand;
   final bool expireFirstRuntimeToken;
+  final bool expireFirstPrivateToolsToken;
+  final bool forbidPrivateTools;
   final List<RequestOptions> requests = <RequestOptions>[];
   int registrationCount = 0;
   int runtimeRequestCount = 0;
+  int privateToolsRequestCount = 0;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -192,6 +301,38 @@ class _HarnessKitInterceptor extends Interceptor {
               },
             ],
           },
+        ),
+      );
+      return;
+    }
+
+    if (options.path.startsWith('/harnesskit/v1/threads/') &&
+        options.path.endsWith('/private-tools')) {
+      privateToolsRequestCount++;
+      if (forbidPrivateTools) {
+        handler.reject(
+          _error(options, HttpStatus.forbidden, <String, dynamic>{
+            'error': <String, dynamic>{
+              'code': 'harness_host_access_forbidden',
+              'message': 'Access forbidden',
+            },
+          }),
+        );
+        return;
+      }
+      if (expireFirstPrivateToolsToken && privateToolsRequestCount == 1) {
+        handler.reject(
+          _error(options, HttpStatus.unauthorized, <String, dynamic>{
+            'error': <String, dynamic>{'message': 'invalid app token'},
+          }),
+        );
+        return;
+      }
+      handler.resolve(
+        Response<Map<String, dynamic>>(
+          requestOptions: options,
+          statusCode: HttpStatus.ok,
+          data: <String, dynamic>{'toolId': 'app-private:abc123'},
         ),
       );
       return;

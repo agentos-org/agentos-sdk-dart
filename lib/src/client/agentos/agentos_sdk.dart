@@ -294,13 +294,17 @@ class AgentOSSDK {
   }
 
   Future<T> _withAppAuthRetry<T>(
-    Future<T> Function(String bearerToken) action,
-  ) async {
+    Future<T> Function(String bearerToken) action, {
+    bool retryForbidden = true,
+  }) async {
     final requestContext = await _requireAppAuthContext();
     try {
       return await action(requestContext.token);
     } catch (error) {
-      if (!_shouldRecoverAppAuth(error)) {
+      if ((!retryForbidden &&
+              error is DioException &&
+              error.response?.statusCode == 403) ||
+          !_shouldRecoverAppAuth(error)) {
         rethrow;
       }
       final refreshedToken = await _refreshAppToken(
@@ -1517,8 +1521,7 @@ class TransferKitModule {
 /// Entry point for the AppKit-authenticated Harness API.
 ///
 /// Register the app with [AgentOSModule.registerBundle] before calling these
-/// methods. The App manifest must opt in to a managed Harness runtime when the
-/// app uses a dedicated runtime.
+/// methods. External Apps use the shared runtime with App-scoped data.
 class HarnessKitModule {
   HarnessKitModule._(this._client);
 
@@ -1580,6 +1583,22 @@ class HarnessKitModule {
       bearerToken: bearerToken,
       threadId: threadId,
     ),
+  );
+
+  /// Registers or replaces a local App's OpenTool callbacks for one thread.
+  ///
+  /// The App must connect directly to the local Gateway and provide a local
+  /// callback service. The callback token is separate from the AppKit token.
+  Future<HarnessKitPrivateToolsRegistrationResult> registerPrivateTools({
+    required String threadId,
+    required HarnessKitPrivateToolsRegistration registration,
+  }) => _client._withAppAuthRetry(
+    (bearerToken) => _client._harnessKit.registerPrivateTools(
+      bearerToken: bearerToken,
+      threadId: threadId,
+      registration: registration,
+    ),
+    retryForbidden: false,
   );
 
   /// Starts a run on a conversation.

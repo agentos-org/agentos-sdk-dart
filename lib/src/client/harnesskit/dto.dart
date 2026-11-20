@@ -1,8 +1,54 @@
+import 'package:json_annotation/json_annotation.dart';
+
+part 'dto.g.dart';
+
 /// JSON objects exchanged with HarnessKit.
 typedef HarnessKitJsonObject = Map<String, dynamic>;
 
 /// Harness engine identifier. Hosts may add engine identifiers over time.
 typedef HarnessKitEngineId = String;
+
+/// A local App's OpenTool callback registration for one Harness thread.
+@JsonSerializable()
+class HarnessKitPrivateToolsRegistration {
+  const HarnessKitPrivateToolsRegistration({
+    required this.endpoint,
+    required this.token,
+    required this.specification,
+  });
+
+  /// Callback service root, `http://127.0.0.1:<port>/`.
+  final String endpoint;
+
+  /// Callback service bearer token; separate from the AppKit token.
+  final String token;
+
+  /// OpenTool JSON document describing the App's functions.
+  final HarnessKitJsonObject specification;
+
+  factory HarnessKitPrivateToolsRegistration.fromJson(
+    Map<String, dynamic> json,
+  ) => _$HarnessKitPrivateToolsRegistrationFromJson(json);
+
+  Map<String, dynamic> toJson() =>
+      _$HarnessKitPrivateToolsRegistrationToJson(this);
+}
+
+/// Identifies the tools registered for a Harness thread.
+@JsonSerializable()
+class HarnessKitPrivateToolsRegistrationResult {
+  const HarnessKitPrivateToolsRegistrationResult({required this.toolId});
+
+  /// Tool ID to include in a run's allow-list, when one is used.
+  final String toolId;
+
+  factory HarnessKitPrivateToolsRegistrationResult.fromJson(
+    Map<String, dynamic> json,
+  ) => _$HarnessKitPrivateToolsRegistrationResultFromJson(json);
+
+  Map<String, dynamic> toJson() =>
+      _$HarnessKitPrivateToolsRegistrationResultToJson(this);
+}
 
 HarnessKitJsonObject _asJsonObject(dynamic value, String name) {
   if (value is Map<String, dynamic>) return value;

@@ -38,6 +38,51 @@ Future<void> main(List<String> args) async {
     );
   }
 
+  // Start an App callback service separately before using this example.
+  if (args.isNotEmpty && args.first == '--harness-private-tools') {
+    final callbackToken = Platform.environment['HARNESS_CALLBACK_TOKEN'];
+    final port = args.length >= 3 ? int.tryParse(args[2]) : null;
+    if (args.length != 3 ||
+        port == null ||
+        port < 1 ||
+        port > 65535 ||
+        callbackToken == null ||
+        callbackToken.isEmpty) {
+      stderr.writeln(
+        'Usage: HARNESS_CALLBACK_TOKEN=<token> dart run '
+        'example/agentos_sdk_dart_example.dart '
+        '--harness-private-tools <thread-id> <callback-port>',
+      );
+      await sdk.dispose();
+      return;
+    }
+    final binding = await sdk.harnesskit.registerPrivateTools(
+      threadId: args[1],
+      registration: HarnessKitPrivateToolsRegistration(
+        endpoint: 'http://127.0.0.1:$port/',
+        token: callbackToken,
+        specification: const <String, dynamic>{
+          'opentool': '1.0.0',
+          'info': <String, dynamic>{'title': 'App tools', 'version': '1.0.0'},
+          'functions': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'name': 'list_assets',
+              'description': 'List app assets',
+              'parameters': <dynamic>[],
+              'return': <String, dynamic>{
+                'name': 'result',
+                'schema': <String, dynamic>{'type': 'object'},
+              },
+            },
+          ],
+        },
+      ),
+    );
+    print('Registered private tools: ${binding.toolId}');
+    await sdk.dispose();
+    return;
+  }
+
   if (args.contains('--harness')) {
     final runtime = await sdk.harnesskit.getRuntime();
     print('Harness engine: ${runtime.engine} (${runtime.status})');

@@ -1,25 +1,16 @@
-## 0.9.0
+## 0.9.1
 
+- feat: register conversation-scoped private App OpenTool callbacks through
+  `sdk.harnesskit.registerPrivateTools`, with AppKit token refresh and typed
+  registration request and response models.
 - feat: add `maxOutputTokens` (the maximum number of tokens a model can generate
   in one response, the platform's `maxTokens`) to `ModelInfo` and `AppModel`, and
   to the `AppModelRegistration` / `AppModelUpdate` request bodies.
-- feat: add HarnessKit runtime, thread, run, command, result, and operational
-  snapshot APIs with AppKit token handling and resumable SSE events.
-- feat: return rejected HarnessKit command receipts from HTTP 400 responses.
-- feat: add ModelKit decision inference. `ModelTask.decision`,
-  `Modality.decisions`, `ModelInfo.supportsDecisionInference` and
-  `sdk.modelkit.decision.create(...)` (`POST /modelkit/decision`) with typed
-  `DecisionQuestion` (`choice` / `score` / `noul`), `DecisionResponse`,
-  `DecisionAnswer` and `DecisionUsage`.
-- feat: add app model registration. `sdk.modelkit.listAppModels()`,
-  `registerAppModel`, `updateAppModel`, `unregisterAppModel` and
-  `toggleAppModel` for `/modelkit/app-models`. Write calls reuse the app token
-  from `registerBundle` and refresh it once on `401`. `ModelKitClient` exposes
-  the same methods with an explicit `bearerToken`.
-- feat: the gateway generates app model IDs. `AppModelRegistration` takes no
-  `id`; the gateway derives a 12-character hashid from the app's bundle ID and
-  the model `name` and returns it as `AppModelWriteResult.id`. Store it: it is
-  the `modelId` of `updateAppModel` / `unregisterAppModel` / `toggleAppModel`
+- breaking: the gateway generates app model IDs. `AppModelRegistration` no
+  longer accepts `id`; the gateway derives a 12-character hashid from the app's
+  bundle ID and the model `name` and returns it as `AppModelWriteResult.id`.
+  Store it: it is the `modelId` of `updateAppModel` / `unregisterAppModel` /
+  `toggleAppModel`
   (looked up only among the calling app's models, otherwise `404`) and the
   `model` of requests. `AppModel.id` and `ModelInfo.id` report the same value.
   A model's `name` is unique within its app: registering an existing `name`
@@ -27,8 +18,6 @@
   `updateAppModel` keeps the id. A `409` means the id derived from `name` is
   still held by a renamed model of the same app, or `updateAppModel` renames a
   model to a `name` another model of the app already uses.
-- feat: `ModelInfo` now reports `isAppModel` and `appBundleId` for models
-  registered by apps.
 - feat: `ModelInfo` now reports `isBenefitCard`, `benefitCardId` and
   `benefitCardName` for the models a benefit card serves. A card model keeps
   `source == ModelSource.platform` and its plain `name` / `alias`; the same model
@@ -48,6 +37,24 @@
   gateway's rules when the gateway predates `source` or reports an unknown
   value, and `ModelInfo(...)` does the same when `source` is omitted, so
   existing constructor calls keep working. `toJson` always writes `source`.
+
+## 0.9.0
+
+- feat: add HarnessKit runtime, thread, run, command, result, and operational
+  snapshot APIs with AppKit token handling and resumable SSE events.
+- feat: return rejected HarnessKit command receipts from HTTP 400 responses.
+- feat: add ModelKit decision inference. `ModelTask.decision`,
+  `Modality.decisions`, `ModelInfo.supportsDecisionInference` and
+  `sdk.modelkit.decision.create(...)` (`POST /modelkit/decision`) with typed
+  `DecisionQuestion` (`choice` / `score` / `noul`), `DecisionResponse`,
+  `DecisionAnswer` and `DecisionUsage`.
+- feat: add app model registration. `sdk.modelkit.listAppModels()`,
+  `registerAppModel`, `updateAppModel`, `unregisterAppModel` and
+  `toggleAppModel` for `/modelkit/app-models`. Write calls reuse the app token
+  from `registerBundle` and refresh it once on `401`. `ModelKitClient` exposes
+  the same methods with an explicit `bearerToken`.
+- feat: `ModelInfo` now reports `isAppModel` and `appBundleId` for models
+  registered by apps.
 - fix: models with `decisions` output are no longer reported as `text` output.
 
 ## 0.8.0

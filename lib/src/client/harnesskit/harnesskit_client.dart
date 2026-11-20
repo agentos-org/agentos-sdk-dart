@@ -104,6 +104,22 @@ class HarnessKitClient {
     ),
   );
 
+  /// Registers or replaces a local App's OpenTool callbacks for one thread.
+  Future<HarnessKitPrivateToolsRegistrationResult> registerPrivateTools({
+    required String bearerToken,
+    required String threadId,
+    required HarnessKitPrivateToolsRegistration registration,
+  }) async => HarnessKitPrivateToolsRegistrationResult.fromJson(
+    _asJsonMap(
+      await request<dynamic>(
+        bearerToken: bearerToken,
+        path: '/v1/threads/${Uri.encodeComponent(threadId)}/private-tools',
+        method: 'PUT',
+        data: registration.toJson(),
+      ),
+    ),
+  );
+
   /// Starts a run on a thread and returns the accepted run identifier.
   Future<HarnessKitRunAccepted> startRun({
     required String bearerToken,

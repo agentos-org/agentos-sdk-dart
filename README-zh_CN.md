@@ -27,7 +27,7 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.9.0
+  agentos_sdk: ^0.9.1
 ```
 
 然后执行：
@@ -466,7 +466,7 @@ if (result.isFailure) {
 
 ### HarnessKitModule（`sdk.harnesskit`）
 
-先调用 `agentos.registerBundle` 注册 App，再使用 HarnessKit。需要独立 runtime 的安装型进程 App 还需在 manifest 中声明 `harnessKit`。
+先调用 `agentos.registerBundle` 注册 App，再通过 Gateway 使用 HarnessKit。外部 App 共享 runtime，会话按 bundle ID 隔离；切换引擎及读取全局运行状态仅限内置 Harness App。
 
 | 方法 | 参数 | 说明 |
 | --- | --- | --- |
@@ -474,6 +474,7 @@ if (result.isFailure) {
 | `getRuntime()` / `switchEngine({required String engine})` | `engine` | 查询或切换当前 runtime 引擎。 |
 | `listThreads()` / `getThread({required String threadId})` | `threadId` | 列出会话或读取会话快照。 |
 | `renameThread({required String threadId, required String title})` / `deleteThread({required String threadId})` | `threadId`, `title` | 重命名或删除会话。 |
+| `registerPrivateTools({required String threadId, required HarnessKitPrivateToolsRegistration registration})` | `threadId`, `registration` | 为会话注册或替换本地 App 私有工具。 |
 | `startRun({required String threadId, required HarnessKitRunRequest request})` | `threadId`, `request` | 启动 run 并返回其 ID。 |
 | `submitCommand({required String threadId, required HarnessKitCommand command})` | `threadId`, `command` | 提交 command 并返回回执；HTTP 400 的拒绝回执也会正常返回。 |
 | `events({required String threadId, HarnessKitEventsOptions options})` | `threadId`, `afterSequence`, `runId` | 打开 SSE 事件流，可按序号续传；取消订阅即可关闭连接。 |
@@ -481,6 +482,42 @@ if (result.isFailure) {
 
 请求和响应 DTO 可从 SDK 公开入口导入。可运行示例：
 `dart run example/agentos_sdk_dart_example.dart --harness`。
+
+#### App 私有工具
+
+外部 App 通过本机回环地址直接连接 Gateway 时，可以为自己的会话注册 OpenTool 函数。先在 `127.0.0.1` 启动回调服务，再提交服务根地址、UUID 形状的回调 token 和 OpenTool JSON：
+
+```dart
+final binding = await sdk.harnesskit.registerPrivateTools(
+  threadId: 'research-thread',
+  registration: HarnessKitPrivateToolsRegistration(
+    endpoint: 'http://127.0.0.1:8123/',
+    token: callbackToken, // 与回调服务配置的 token 一致。
+    specification: <String, dynamic>{
+      'opentool': '1.0.0',
+      'info': <String, dynamic>{'title': 'App tools', 'version': '1.0.0'},
+      'functions': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'name': 'list_assets',
+          'description': 'List app assets',
+          'parameters': <dynamic>[],
+          'return': <String, dynamic>{
+            'name': 'result',
+            'schema': <String, dynamic>{'type': 'object'},
+          },
+        },
+      ],
+    },
+  ),
+);
+print(binding.toolId);
+```
+
+`endpoint` 必须是 `http://127.0.0.1:<port>/` 根地址。回调 token 与 AppKit token 独立，调用回调服务时作为 Bearer token 使用。服务需要提供 `GET /private-tools/opentool/version`（健康检查返回 HTTP 200）、`POST /private-tools/opentool/call`；流式函数还需提供 `POST /private-tools/opentool/streamCall`。调用请求包含 `jsonrpc: "2.0.0"`、`id`、`method` 和 `params`；响应包含相同的 `jsonrpc`、`id` 以及 `result` 或 `error`。流式响应使用 SSE JSON 数据事件，并以 `DONE` 事件结束。
+
+返回的 `toolId` 标识该会话的工具。若 run 使用 `toolPolicy.allowedToolIds`，需将其加入允许列表；可以通过 `HarnessKitRunRequest.extra` 传入 policy。同一会话再次注册会替换绑定；绑定保存在内存中，Harness 重启后需要重新注册，会话删除或连续两次健康检查失败也会移除绑定。远程连接和内置 Harness App 不能注册此类回调。
+
+示例程序提供 `--harness-private-tools` 选项；回调服务需要由 App 单独提供。
 
 ### AgentKitModule（`sdk.agentkit`）
 

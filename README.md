@@ -29,7 +29,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.9.0
+  agentos_sdk: ^0.9.1
 ```
 
 Then run:
@@ -490,8 +490,9 @@ For end-to-end local testing, see
 ### HarnessKitModule (`sdk.harnesskit`)
 
 After `agentos.registerBundle`, use HarnessKit through the authenticated Gateway.
-Apps that need their own managed runtime must declare `harnessKit` in their
-installable process App manifest.
+External Apps use the shared runtime with threads scoped to their bundle ID.
+Engine switching and the global operational snapshot are reserved for the
+built-in Harness App.
 
 | Method | Parameters | Description |
 | --- | --- | --- |
@@ -499,6 +500,7 @@ installable process App manifest.
 | `getRuntime()` / `switchEngine({required String engine})` | `engine` | Reads or changes the active runtime engine. |
 | `listThreads()` / `getThread({required String threadId})` | `threadId` | Lists saved conversations or reads one snapshot. |
 | `renameThread({required String threadId, required String title})` / `deleteThread({required String threadId})` | `threadId`, `title` | Renames or deletes a saved conversation. |
+| `registerPrivateTools({required String threadId, required HarnessKitPrivateToolsRegistration registration})` | `threadId`, `registration` | Registers or replaces a local App's private tools for one conversation. |
 | `startRun({required String threadId, required HarnessKitRunRequest request})` | `threadId`, `request` | Starts a run and returns its `runId`. |
 | `submitCommand({required String threadId, required HarnessKitCommand command})` | `threadId`, `command` | Submits a command and returns its receipt, including rejected receipts returned with HTTP 400. |
 | `events({required String threadId, HarnessKitEventsOptions options})` | `threadId`, `afterSequence`, `runId` | Opens an SSE stream that can resume from a sequence number. Cancel the stream subscription to close it. |
@@ -507,6 +509,56 @@ installable process App manifest.
 The request and response models are exported from the package entry point. See
 [`example/agentos_sdk_dart_example.dart`](example/agentos_sdk_dart_example.dart)
 for a minimal runtime and thread listing example.
+
+#### Private App tools
+
+An external App connected directly to the local Gateway can register OpenTool
+functions for one of its threads. Start a callback service on `127.0.0.1` first,
+then register its root URL, UUID-shaped callback token, and OpenTool JSON:
+
+```dart
+final binding = await sdk.harnesskit.registerPrivateTools(
+  threadId: 'research-thread',
+  registration: HarnessKitPrivateToolsRegistration(
+    endpoint: 'http://127.0.0.1:8123/',
+    token: callbackToken, // Also configured on the callback service.
+    specification: <String, dynamic>{
+      'opentool': '1.0.0',
+      'info': <String, dynamic>{'title': 'App tools', 'version': '1.0.0'},
+      'functions': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'name': 'list_assets',
+          'description': 'List app assets',
+          'parameters': <dynamic>[],
+          'return': <String, dynamic>{
+            'name': 'result',
+            'schema': <String, dynamic>{'type': 'object'},
+          },
+        },
+      ],
+    },
+  ),
+);
+print(binding.toolId);
+```
+
+The endpoint must be an `http://127.0.0.1:<port>/` root URL. The callback
+token is separate from the AppKit token and is sent as a bearer token. The
+service must provide `GET /private-tools/opentool/version` (HTTP 200 for health
+checks) and `POST /private-tools/opentool/call` for ordinary functions. For
+streaming functions it must also provide `POST /private-tools/opentool/streamCall`.
+Calls use JSON with `jsonrpc: "2.0.0"`, `id`, `method`, and `params`; responses
+must carry the same `jsonrpc` and `id` plus `result` or `error`. Streaming
+responses use SSE with JSON data events and a final `DONE` event.
+
+The returned `toolId` identifies this thread's tools. If a run uses
+`toolPolicy.allowedToolIds`, include this ID in the allow-list; pass the policy
+through `HarnessKitRunRequest.extra`. Registering again replaces the binding.
+Bindings are held in memory and must be registered again after a Harness restart;
+they are also removed on thread deletion or after two failed health checks.
+Remote connections and the built-in Harness App cannot register these callbacks.
+See the `--harness-private-tools` option in the example for a runnable client
+call; the App must supply the callback service separately.
 
 ### AgentKitModule (`sdk.agentkit`)
 
