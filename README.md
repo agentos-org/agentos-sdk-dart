@@ -162,7 +162,7 @@ origin of the model. Group and label models by it instead of combining
 | `ModelSource` | Meaning | Suggested group |
 | --- | --- | --- |
 | `local` | Runs on this device | Local Models |
-| `platform` | Remote model provided by the AgentOS platform | Platform Models |
+| `platform` | Remote model provided by the AgentOS platform | Platform Models, plus `Remote · System · {benefitCardName}` for each benefit card (see below) |
 | `custom` | Remote model configured by the user | Custom Models |
 | `app` | Registered by a third-party app | `App · {appName}` (one group per app) |
 
@@ -181,6 +181,23 @@ app name, for group titles; `appName` is only set when the gateway reports one,
 so fall back to `appBundleId`). Against gateways that predate `source`, or when
 it holds an unknown value, `source` is derived from the legacy flags with the
 gateway's rules.
+
+Models served through a benefit card keep `source == ModelSource.platform` and
+their plain `name` / `alias`, and additionally report `isBenefitCard`,
+`benefitCardId` and `benefitCardName` (`benefitCardName` is only set when the
+gateway reports one, so fall back to `benefitCardId`). The same model can be
+listed once for the plan and once per card, so tell them apart by `id` or the
+card fields, and show each card as its own group:
+
+```dart
+String systemGroupTitle(ModelInfo model) => model.isBenefitCard
+    ? 'Remote · System · ${model.benefitCardName ?? model.benefitCardId}'
+    : 'Remote · System';
+```
+
+System models that are not benefit card models also report `billingType`
+(`ModelBillingType.free`, `plan` or `payAsYouGo`; `null` when unknown and for
+every other model), so a picker can mark each type with a small badge.
 
 `ModelInfo` also reports `contextWindowSize` and `maxOutputTokens` (the maximum
 number of tokens the model can generate in one response) when the gateway knows
@@ -550,7 +567,9 @@ for a minimal runtime and thread listing example.
 `supportsChatInference`, `supportsDecisionInference` and `isVisionLanguage` are
 provided. `source` (`ModelSource`: `local` / `platform` / `custom` / `app`) is the
 mutually exclusive origin of the model. App-registered models additionally report
-`isAppModel`, `appBundleId` and `appName`.
+`isAppModel`, `appBundleId` and `appName`. Benefit card models additionally report
+`isBenefitCard`, `benefitCardId` and `benefitCardName`; other platform models
+report `billingType`.
 
 `ModelKitClient` (`ModelKitClient(apiClient: ...)`) offers the same app-model
 methods with an explicit `bearerToken:` parameter instead of the automatic app

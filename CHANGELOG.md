@@ -29,6 +29,17 @@
   model to a `name` another model of the app already uses.
 - feat: `ModelInfo` now reports `isAppModel` and `appBundleId` for models
   registered by apps.
+- feat: `ModelInfo` now reports `isBenefitCard`, `benefitCardId` and
+  `benefitCardName` for the models a benefit card serves. A card model keeps
+  `source == ModelSource.platform` and its plain `name` / `alias`; the same model
+  can be listed once for the plan and once per card, and only `id` and the card
+  fields tell them apart. Group card models one group per card (for example
+  `Remote · System · {benefitCardName}`, falling back to `benefitCardId`). The
+  fields are absent for other models and on gateways that predate them.
+- feat: `ModelInfo` now reports `billingType` (`ModelBillingType`: `free` /
+  `plan` / `payAsYouGo`) for system models that are not benefit card models.
+  It is `null` for benefit card, local, custom and app models, and on gateways
+  that predate the field. Pickers can mark each type with a badge.
 - feat: `ModelInfo` now reports `source` (`ModelSource`: `local` / `platform` /
   `custom` / `app`), the gateway's mutually exclusive model origin, and `appName`
   for app models. Group and label models by `source` (for example

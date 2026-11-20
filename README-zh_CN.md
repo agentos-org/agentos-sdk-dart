@@ -159,7 +159,7 @@ print(completion.choices.first.message.content?.first.text);
 | `ModelSource` | 含义 | 建议分组 |
 | --- | --- | --- |
 | `local` | 在本机运行 | 本地模型 |
-| `platform` | AgentOS 平台提供的远端模型 | 平台模型 |
+| `platform` | AgentOS 平台提供的远端模型 | 平台模型，另为每张权益卡单独分组 `远端 · 系统 · {benefitCardName}`（见下） |
 | `custom` | 用户自行配置的远端模型 | 自定义模型 |
 | `app` | 第三方 app 注册的模型 | `App · {appName}`（每个 app 一组） |
 
@@ -176,6 +176,20 @@ for (final model in await sdk.modelkit.listModels()) {
 app 模型还会带有 `appBundleId` 与 `appName`（app 的可读名称，用作分组标题；
 `appName` 仅在网关返回时才有值，缺失时请回退到 `appBundleId`）。对于尚未提供
 `source` 的旧网关，或 `source` 为未知值时，会按网关的规则由旧布尔字段推导。
+
+由权益卡提供的模型仍保持 `source == ModelSource.platform` 与原样的 `name` / `alias`，并额外带有
+`isBenefitCard`、`benefitCardId` 与 `benefitCardName`（`benefitCardName` 仅在网关返回时才有值，
+缺失时请回退到 `benefitCardId`）。同一个模型可能在套餐和每张权益卡下各出现一次，请用 `id`
+或权益卡字段区分，并让每张权益卡各自成组：
+
+```dart
+String systemGroupTitle(ModelInfo model) => model.isBenefitCard
+    ? '远端 · 系统 · ${model.benefitCardName ?? model.benefitCardId}'
+    : '远端 · 系统';
+```
+
+非权益卡的系统模型还会带有 `billingType`（`ModelBillingType.free`、`plan` 或 `payAsYouGo`；
+未知时以及其他模型均为 `null`），选择器可以为每种类型加一个小标识。
 
 网关已知时，`ModelInfo` 还会带有 `contextWindowSize` 与 `maxOutputTokens`（模型单次
 响应最多可生成的 token 数），否则为 `null`。只有 chat 模型才会返回 `maxOutputTokens`
@@ -525,7 +539,8 @@ if (result.isFailure) {
 `stream` / `reasoning`）描述每个模型，并提供 `hasVision`、
 `supportsChatInference`、`supportsDecisionInference`、`isVisionLanguage` 等便捷
 getter。`source`（`ModelSource`：`local` / `platform` / `custom` / `app`）是模型互斥的
-来源。App 注册的模型还会带有 `isAppModel`、`appBundleId` 与 `appName`。
+来源。App 注册的模型还会带有 `isAppModel`、`appBundleId` 与 `appName`；权益卡模型还会带有
+`isBenefitCard`、`benefitCardId` 与 `benefitCardName`；其他平台模型还会带有 `billingType`。
 
 `ModelKitClient`（`ModelKitClient(apiClient: ...)`）提供同样的 app model 方法，
 但需要显式传入 `bearerToken:`，而不是自动使用 app token。

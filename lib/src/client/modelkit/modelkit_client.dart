@@ -97,7 +97,8 @@ enum ModelSource {
   /// Runs on this device.
   local('local'),
 
-  /// A remote model provided by the AgentOS platform.
+  /// A remote model provided by the AgentOS platform, including the models of a
+  /// benefit card (see [ModelInfo.isBenefitCard]).
   platform('platform'),
 
   /// A remote model the user configured.
@@ -137,6 +138,38 @@ enum ModelSource {
   }
 }
 
+/// How a system model is billed, as reported by the gateway's `billingType`
+/// field of `/modelkit/models`.
+///
+/// Only platform models that are not benefit card models have one; see
+/// [ModelInfo.billingType].
+enum ModelBillingType {
+  /// Served by the free plan every account without a subscription is on.
+  free('free'),
+
+  /// Included in the user's paid subscription plan.
+  plan('plan'),
+
+  /// Billed to the account balance by actual usage.
+  payAsYouGo('payAsYouGo');
+
+  const ModelBillingType(this.wireName);
+
+  /// Wire identifier used by the agentos-api gateway.
+  final String wireName;
+
+  /// Parses a wire value (case-insensitive); returns null when [value] is
+  /// missing or not a known billing type.
+  static ModelBillingType? tryParse(String? value) {
+    if (value == null) return null;
+    final normalized = value.trim().toLowerCase();
+    for (final type in values) {
+      if (type.wireName.toLowerCase() == normalized) return type;
+    }
+    return null;
+  }
+}
+
 /// Model descriptor returned by `/modelkit/models`.
 ///
 /// ModelKit classifies models by [task] and uses [inputModalities] +
@@ -160,6 +193,10 @@ class ModelInfo {
     this.isAppModel = false,
     this.appBundleId,
     this.appName,
+    this.isBenefitCard = false,
+    this.benefitCardId,
+    this.benefitCardName,
+    this.billingType,
   }) : source =
            source ??
            ModelSource.derive(
@@ -208,6 +245,31 @@ class ModelInfo {
   /// [appBundleId] otherwise.
   final String? appName;
 
+  /// Whether this model is served through one of the user's benefit cards. Such
+  /// a model keeps `source == ModelSource.platform` and its plain
+  /// [name] / [alias]; the same model can be listed once for the plan and once
+  /// for each card, and only [id] and the card fields tell them apart.
+  final bool isBenefitCard;
+
+  /// ID of the benefit card that serves this model. Only present for benefit
+  /// card models.
+  final String? benefitCardId;
+
+  /// Human-readable name of the benefit card that serves this model, for group
+  /// titles in model pickers (for example `Remote · System · {benefitCardName}`).
+  /// Only present for benefit card models, and only when the gateway reports
+  /// one; fall back to [benefitCardId] otherwise.
+  final String? benefitCardName;
+
+  /// How this system model is billed: free, in the paid plan or pay as you go.
+  ///
+  /// Only platform models that are not benefit card models report it (benefit
+  /// card models are billed through their card), and only when the gateway
+  /// knows it; it is `null` for every other model and on gateways that predate
+  /// the field. Pickers can mark each type with a small badge (for example
+  /// "Free", "Plan" and "Pay as you go").
+  final ModelBillingType? billingType;
+
   bool get hasVision =>
       capabilities.vision ||
       inputModalities.contains(Modality.image) ||
@@ -247,6 +309,10 @@ class ModelInfo {
       isAppModel: json['isAppModel'] as bool? ?? false,
       appBundleId: json['appBundleId']?.toString(),
       appName: _nonEmptyOrNull(json['appName']),
+      isBenefitCard: json['isBenefitCard'] as bool? ?? false,
+      benefitCardId: _nonEmptyOrNull(json['benefitCardId']),
+      benefitCardName: _nonEmptyOrNull(json['benefitCardName']),
+      billingType: ModelBillingType.tryParse(json['billingType']?.toString()),
     );
   }
 
@@ -272,6 +338,10 @@ class ModelInfo {
     if (isAppModel) 'isAppModel': true,
     'appBundleId': ?appBundleId,
     'appName': ?appName,
+    if (isBenefitCard) 'isBenefitCard': true,
+    'benefitCardId': ?benefitCardId,
+    'benefitCardName': ?benefitCardName,
+    'billingType': ?billingType?.wireName,
   };
 
   static List<Modality> _parseModalities(dynamic value) {

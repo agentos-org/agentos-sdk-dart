@@ -158,6 +158,192 @@ void main() {
     });
 
     test(
+      'listModels reports benefit card models next to plan models',
+      () async {
+        final recorder = _RecordingInterceptor((options) {
+          return <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'subscription:deepseek-v4-flash',
+              'name': 'deepseek-v4-flash',
+              'alias': 'deepseek-v4-flash',
+              'task': 'chat',
+              'isRemote': true,
+              'source': 'platform',
+            },
+            <String, dynamic>{
+              'id': 'bc_7',
+              'name': 'deepseek-v4-flash',
+              'alias': 'deepseek-v4-flash',
+              'task': 'chat',
+              'isRemote': true,
+              'source': 'platform',
+              'isBenefitCard': true,
+              'benefitCardId': 'card-1',
+              'benefitCardName': 'Spring card',
+            },
+            <String, dynamic>{
+              'id': 'bc_8',
+              'name': 'qwen-max',
+              'alias': 'qwen-max',
+              'task': 'chat',
+              'isRemote': true,
+              'source': 'platform',
+              'isBenefitCard': true,
+              'benefitCardId': 'card-2',
+              'benefitCardName': '  ',
+            },
+          ];
+        });
+        final models = await ModelKitClient(
+          apiClient: _apiClient(recorder),
+        ).listModels();
+
+        // A card model stays a platform model with its plain name and alias.
+        expect(models.map((m) => m.source).toSet(), <ModelSource>{
+          ModelSource.platform,
+        });
+        expect(models[1].name, models[0].name);
+        expect(models[1].alias, models[0].alias);
+
+        expect(models[0].isBenefitCard, isFalse);
+        expect(models[0].benefitCardId, isNull);
+        expect(models[0].benefitCardName, isNull);
+
+        expect(models[1].isBenefitCard, isTrue);
+        expect(models[1].benefitCardId, 'card-1');
+        expect(models[1].benefitCardName, 'Spring card');
+
+        // A blank card name is dropped; the card id stays available as a label.
+        expect(models[2].isBenefitCard, isTrue);
+        expect(models[2].benefitCardId, 'card-2');
+        expect(models[2].benefitCardName, isNull);
+      },
+    );
+
+    test('toJson writes the benefit card fields only for card models', () {
+      final card = ModelInfo(
+        id: 'bc_7',
+        name: 'm',
+        alias: 'm',
+        task: ModelTask.chat,
+        isRemote: true,
+        isBenefitCard: true,
+        benefitCardId: 'card-1',
+        benefitCardName: 'Spring card',
+      );
+      final json = card.toJson();
+      expect(json['source'], 'platform');
+      expect(json['isBenefitCard'], isTrue);
+      expect(json['benefitCardId'], 'card-1');
+      expect(json['benefitCardName'], 'Spring card');
+
+      // The serialized model can be read back unchanged.
+      final restored = ModelInfo.fromJson(json);
+      expect(restored.isBenefitCard, isTrue);
+      expect(restored.benefitCardId, 'card-1');
+      expect(restored.benefitCardName, 'Spring card');
+
+      final plain = ModelInfo(
+        id: 'subscription:m',
+        name: 'm',
+        alias: 'm',
+        task: ModelTask.chat,
+        isRemote: true,
+      ).toJson();
+      expect(plain.containsKey('isBenefitCard'), isFalse);
+      expect(plain.containsKey('benefitCardId'), isFalse);
+      expect(plain.containsKey('benefitCardName'), isFalse);
+    });
+
+    test('listModels reports the billing type of system models', () async {
+      final recorder = _RecordingInterceptor((options) {
+        return <Map<String, dynamic>>[
+          for (final type in <String?>['free', 'plan', 'payAsYouGo', 'PAYASYOUGO'])
+            <String, dynamic>{
+              'id': 'subscription:$type',
+              'name': 'm-$type',
+              'alias': 'm-$type',
+              'task': 'chat',
+              'isRemote': true,
+              'source': 'platform',
+              'billingType': type,
+            },
+          // No field (benefit card, local, custom, old gateway), blank and unknown values.
+          <String, dynamic>{
+            'id': 'bc_7',
+            'name': 'card',
+            'alias': 'card',
+            'task': 'chat',
+            'isRemote': true,
+            'source': 'platform',
+            'isBenefitCard': true,
+            'benefitCardId': 'card-1',
+          },
+          <String, dynamic>{
+            'id': 'blank',
+            'name': 'blank',
+            'alias': 'blank',
+            'task': 'chat',
+            'billingType': '  ',
+          },
+          <String, dynamic>{
+            'id': 'unknown',
+            'name': 'unknown',
+            'alias': 'unknown',
+            'task': 'chat',
+            'billingType': 'subscription',
+          },
+        ];
+      });
+      final models = await ModelKitClient(
+        apiClient: _apiClient(recorder),
+      ).listModels();
+
+      expect(models.map((m) => m.billingType).toList(), <ModelBillingType?>[
+        ModelBillingType.free,
+        ModelBillingType.plan,
+        ModelBillingType.payAsYouGo,
+        ModelBillingType.payAsYouGo,
+        null,
+        null,
+        null,
+      ]);
+    });
+
+    test('toJson writes billingType only when it is known', () {
+      for (final type in ModelBillingType.values) {
+        final json = ModelInfo(
+          id: 'subscription:m',
+          name: 'm',
+          alias: 'm',
+          task: ModelTask.chat,
+          isRemote: true,
+          billingType: type,
+        ).toJson();
+        expect(json['billingType'], type.wireName);
+        expect(ModelInfo.fromJson(json).billingType, type);
+      }
+
+      final plain = ModelInfo(
+        id: 'bc_7',
+        name: 'm',
+        alias: 'm',
+        task: ModelTask.chat,
+        isRemote: true,
+      ).toJson();
+      expect(plain.containsKey('billingType'), isFalse);
+    });
+
+    test('ModelBillingType wire names are stable', () {
+      expect(
+        ModelBillingType.values.map((t) => t.wireName).toList(),
+        <String>['free', 'plan', 'payAsYouGo'],
+      );
+      expect(ModelBillingType.tryParse(null), isNull);
+      expect(ModelBillingType.tryParse('unknown'), isNull);
+    });
+
+    test(
       'listModels derives source when the gateway does not send it',
       () async {
         final recorder = _RecordingInterceptor((options) {
