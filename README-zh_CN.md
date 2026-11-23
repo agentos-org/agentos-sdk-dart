@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 一个轻量的 Dart SDK，用于访问 AgentOS API，支持 Root、AgentKit、AppKit、
-AuthKit、CronKit、DiscoveryKit、HarnessKit、RagKit、ModelKit（chat / embedding / asr / tts / decision，及 app model 注册）、
+AuthKit、CronKit、DiscoveryKit、HarnessKit、ModelKit（chat / embedding / asr / tts / decision，及 app model 注册）、
 ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手动管理 token。
 
 ## 功能
@@ -14,7 +14,6 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 - AuthKit API：将第三方登录授权请求投递到本机 AgentOS Desktop
 - CronKit API：定时任务 CRUD、运行记录与调度器控制
 - DiscoveryKit API：附近设备发现、设备流、注册/注销
-- RagKit API：知识库、文档、同步与查询接口
 - ModelKit API：基于任务的模型列表，`/modelkit/*` 下的 OpenAI 兼容
   chat / embedding / asr / tts 客户端，带类型问题的 decision 推理，以及外部
   app model 注册
@@ -318,7 +317,6 @@ AgentOSSDK({
 | `cronkit` | `CronKitModule` | CronKit 相关接口，内部处理 token。 |
 | `discoverykit` | `DiscoveryKitModule` | DiscoveryKit 附近设备发现接口。 |
 | `harnesskit` | `HarnessKitModule` | Harness runtime、thread、run、command 和事件接口。 |
-| `ragkit` | `RagKitModule` | RagKit 知识库接口，内部处理 token。 |
 | `modelkit` | `ModelKitModule` | ModelKit 基于任务的模型列表、chat / embedding / asr / tts / decision 客户端与 app model 注册。 |
 | `toolkit` | `ToolKitModule` | ToolKit 发现接口与 tool 生命周期事件订阅。 |
 | `transferkit` | `TransferKitModule` | TransferKit 文件传输接口。 |
@@ -535,25 +533,6 @@ print(binding.toolId);
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | 发送工具回调结果。 |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | 发送流式工具回调结果。 |
 
-### RagKitModule（`sdk.ragkit`）
-
-| 方法 | 参数 | 说明 |
-| --- | --- | --- |
-| `getBase({required String baseId})` | `baseId` | 按 ID 获取知识库。 |
-| `listBases({int? offset, int? limit})` | `offset`, `limit` | 获取当前 app group 可见的知识库列表。 |
-| `createBase({required RagBaseCreateRequest request})` | `request` | 创建知识库。 |
-| `updateBase({required RagBaseUpdateRequest request})` | `request` | 更新当前 app 拥有的知识库。 |
-| `deleteBase({required String baseId})` | `baseId` | 删除当前 app 拥有的知识库。 |
-| `getDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | 获取单个文档。 |
-| `listDocuments({required String baseId, int? offset, int? limit})` | `baseId`, `offset`, `limit` | 获取某个知识库内的文档列表。 |
-| `upsertDocument({required RagUpsertDocumentRequest request})` | `request` | 创建或更新单个 Markdown 文档。 |
-| `upsertDocuments({required RagUpsertDocumentsRequest request})` | `request` | 批量创建或更新 Markdown 文档。 |
-| `deleteDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | 删除单个文档。 |
-| `syncDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | 触发单个文档的向量同步。 |
-| `syncBase({required String baseId})` | `baseId` | 触发整个知识库的向量同步。 |
-| `retryFailed({String? baseId})` | `baseId` | 重试失败的文档同步任务，可选限制到单个知识库。 |
-| `query({required RagQueryRequest request})` | `request` | 对指定知识库执行语义查询。 |
-
 ### ModelKitModule（`sdk.modelkit`）
 
 | 方法/属性 | 类型 | 说明 |
@@ -764,7 +743,7 @@ await sdk.agentkit.stop(sessionId: sessionId);
 - 在调用需要 token 的 `agentkit`/`agentos`/`authkit`/`discoverykit`/`transferkit` 接口前，请先调用 `agentos.registerBundle`。
 - `authkit.openAuthorization` 只负责在本机展示授权页；登录是否成功以你自己 Server 的事务状态为准。
 - `AgentOSSDK` 对外暴露模块属性（`agentos`、`agentkit`、`authkit`、`cronkit`、
-  `discoverykit`、`ragkit`、`modelkit`、`toolkit`、`transferkit`），便于按 API 领域区分。
+  `discoverykit`、`modelkit`、`toolkit`、`transferkit`），便于按 API 领域区分。
 - AgentKit 接口通过 `/agentkit/*` 对外提供。
 - CronKit 接口通过 `/cronkit/*` 对外提供。
 - `sdk.modelkit.chat` 请求 `/modelkit/chat/...`。

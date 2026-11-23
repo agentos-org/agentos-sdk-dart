@@ -24,8 +24,6 @@ import '../cronkit/cronkit_client.dart';
 import '../cronkit/dto.dart';
 import '../discoverykit/discoverykit_client.dart';
 import '../discoverykit/dto.dart';
-import '../ragkit/dto.dart';
-import '../ragkit/ragkit_client.dart';
 import '../systemkit/dto.dart';
 import '../systemkit/systemkit_client.dart';
 import '../modelkit/modelkit_client.dart';
@@ -54,7 +52,6 @@ class AgentOSSDK {
   late final AgentKitClient _agentKit = AgentKitClient(apiClient: _apiClient);
   late final AppKitClient _appKit = AppKitClient(apiClient: _apiClient);
   late final CronKitClient _cronKit = CronKitClient(apiClient: _apiClient);
-  late final RagKitClient _ragKit = RagKitClient(apiClient: _apiClient);
   late final ModelKitClient _modelKit = ModelKitClient(apiClient: _apiClient);
   late final ToolKitClient _toolKit = ToolKitClient(apiClient: _apiClient);
   late final AuthKitClient _authKitClient = AuthKitClient(
@@ -93,7 +90,6 @@ class AgentOSSDK {
   late final AgentOSModule agentos = AgentOSModule._(this);
   late final AgentKitModule agentkit = AgentKitModule._(this);
   late final CronKitModule cronkit = CronKitModule._(this);
-  late final RagKitModule ragkit = RagKitModule._(this);
   late final ModelKitModule modelkit = ModelKitModule._(this);
   late final ToolKitModule toolkit = ToolKitModule._(this);
   late final AuthKitModule authkit = AuthKitModule._(this);
@@ -676,151 +672,6 @@ class CronKitModule {
     return _client._withAppAuthRetry(
       (bearerToken) =>
           _client._cronKit.deleteRun(bearerToken: bearerToken, runId: runId),
-    );
-  }
-}
-
-class RagKitModule {
-  RagKitModule._(this._client);
-
-  final AgentOSSDK _client;
-
-  Future<RagBase> getBase({required String baseId}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._ragKit.getBase(bearerToken: bearerToken, baseId: baseId),
-    );
-  }
-
-  Future<List<RagBaseListItem>> listBases({int? offset, int? limit}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._ragKit.listBases(
-        bearerToken: bearerToken,
-        offset: offset,
-        limit: limit,
-      ),
-    );
-  }
-
-  Future<RagBase> createBase({required RagBaseCreateRequest request}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._ragKit.createBase(
-        bearerToken: bearerToken,
-        request: request,
-      ),
-    );
-  }
-
-  Future<RagBase> updateBase({required RagBaseUpdateRequest request}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._ragKit.updateBase(
-        bearerToken: bearerToken,
-        request: request,
-      ),
-    );
-  }
-
-  Future<RagDeleteBaseResult> deleteBase({required String baseId}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._ragKit.deleteBase(bearerToken: bearerToken, baseId: baseId),
-    );
-  }
-
-  Future<RagDocument> getDocument({
-    required String baseId,
-    required String documentId,
-  }) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._ragKit.getDocument(
-        bearerToken: bearerToken,
-        baseId: baseId,
-        documentId: documentId,
-      ),
-    );
-  }
-
-  Future<List<RagDocumentListItem>> listDocuments({
-    required String baseId,
-    int? offset,
-    int? limit,
-  }) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._ragKit.listDocuments(
-        bearerToken: bearerToken,
-        baseId: baseId,
-        offset: offset,
-        limit: limit,
-      ),
-    );
-  }
-
-  Future<RagDocument> upsertDocument({
-    required RagUpsertDocumentRequest request,
-  }) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._ragKit.upsertDocument(
-        bearerToken: bearerToken,
-        request: request,
-      ),
-    );
-  }
-
-  Future<RagBatchResult> upsertDocuments({
-    required RagUpsertDocumentsRequest request,
-  }) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._ragKit.upsertDocuments(
-        bearerToken: bearerToken,
-        request: request,
-      ),
-    );
-  }
-
-  Future<RagDeleteDocumentResult> deleteDocument({
-    required String baseId,
-    required String documentId,
-  }) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._ragKit.deleteDocument(
-        bearerToken: bearerToken,
-        baseId: baseId,
-        documentId: documentId,
-      ),
-    );
-  }
-
-  Future<RagDocumentSyncResult> syncDocument({
-    required String baseId,
-    required String documentId,
-  }) {
-    return _client._withAppAuthRetry(
-      (bearerToken) => _client._ragKit.syncDocument(
-        bearerToken: bearerToken,
-        baseId: baseId,
-        documentId: documentId,
-      ),
-    );
-  }
-
-  Future<RagBatchResult> syncBase({required String baseId}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._ragKit.syncBase(bearerToken: bearerToken, baseId: baseId),
-    );
-  }
-
-  Future<RagBatchResult> retryFailed({String? baseId}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._ragKit.retryFailed(bearerToken: bearerToken, baseId: baseId),
-    );
-  }
-
-  Future<RagQueryResult> query({required RagQueryRequest request}) {
-    return _client._withAppAuthRetry(
-      (bearerToken) =>
-          _client._ragKit.query(bearerToken: bearerToken, request: request),
     );
   }
 }

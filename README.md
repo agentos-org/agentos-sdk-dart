@@ -1,7 +1,7 @@
 # AgentOS SDK for Dart
 
 A lightweight Dart SDK for the AgentOS API, supporting Root, AgentKit, AppKit,
-AuthKit, CronKit, DiscoveryKit, HarnessKit, RagKit, ModelKit (chat / embedding / asr / tts / decision, app models),
+AuthKit, CronKit, DiscoveryKit, HarnessKit, ModelKit (chat / embedding / asr / tts / decision, app models),
 ToolKit, and TransferKit endpoints. Use the unified `AgentOSSDK` to avoid managing tokens manually.
 
 ## Features
@@ -14,7 +14,6 @@ ToolKit, and TransferKit endpoints. Use the unified `AgentOSSDK` to avoid managi
 - AuthKit API: deliver third-party login requests to local AgentOS Desktop
 - CronKit API: cron task CRUD, run history, and scheduler control
 - DiscoveryKit API: nearby device discovery, peer streaming, registration
-- RagKit API: RAG base, document, sync, and query endpoints
 - ModelKit API: task-oriented model listing, OpenAI-compatible chat /
   embedding / asr / tts clients under `/modelkit/*`, typed-question decision
   inference, and external app-model registration
@@ -333,7 +332,6 @@ Use `baseUrl`, `connectTimeout`, and `receiveTimeout` for public configuration.
 | `cronkit` | `CronKitModule` | CronKit task management endpoints with internal token handling. |
 | `discoverykit` | `DiscoveryKitModule` | DiscoveryKit nearby device discovery endpoints. |
 | `harnesskit` | `HarnessKitModule` | Harness runtime, thread, run, command, and event endpoints. |
-| `ragkit` | `RagKitModule` | RagKit knowledge-base endpoints with internal token handling. |
 | `modelkit` | `ModelKitModule` | ModelKit task-oriented model listing, chat / embedding / asr / tts / decision clients, and app-model registration. |
 | `toolkit` | `ToolKitModule` | ToolKit discovery endpoints and tool lifecycle event subscription. |
 | `transferkit` | `TransferKitModule` | TransferKit file transfer endpoints. |
@@ -576,25 +574,6 @@ call; the App must supply the callback service separately.
 | `callback({required String sessionId, required ToolReturn toolReturn})` | `sessionId`, `toolReturn` | Sends tool callback results. |
 | `streamCallback({required String sessionId, required EventToolReturn eventToolReturn})` | `sessionId`, `eventToolReturn` | Sends streaming tool callback results. |
 
-### RagKitModule (`sdk.ragkit`)
-
-| Method | Parameters | Description |
-| --- | --- | --- |
-| `getBase({required String baseId})` | `baseId` | Fetches a RAG base by ID. |
-| `listBases({int? offset, int? limit})` | `offset`, `limit` | Lists RAG bases visible to the current app group. |
-| `createBase({required RagBaseCreateRequest request})` | `request` | Creates a RAG base. |
-| `updateBase({required RagBaseUpdateRequest request})` | `request` | Updates a RAG base owned by the current app. |
-| `deleteBase({required String baseId})` | `baseId` | Deletes a RAG base owned by the current app. |
-| `getDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | Fetches one RAG document. |
-| `listDocuments({required String baseId, int? offset, int? limit})` | `baseId`, `offset`, `limit` | Lists documents inside a RAG base. |
-| `upsertDocument({required RagUpsertDocumentRequest request})` | `request` | Creates or updates one markdown document. |
-| `upsertDocuments({required RagUpsertDocumentsRequest request})` | `request` | Batch creates or updates markdown documents. |
-| `deleteDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | Deletes one RAG document. |
-| `syncDocument({required String baseId, required String documentId})` | `baseId`, `documentId` | Triggers embeddings sync for one document. |
-| `syncBase({required String baseId})` | `baseId` | Triggers embeddings sync for one base. |
-| `retryFailed({String? baseId})` | `baseId` | Retries failed document sync jobs, optionally scoped to one base. |
-| `query({required RagQueryRequest request})` | `request` | Runs a semantic query against one RAG base. |
-
 ### ModelKitModule (`sdk.modelkit`)
 
 | Method/Property | Type | Description |
@@ -814,7 +793,7 @@ API does not expose the underlying Dart stream subscription.
 - `authkit.openAuthorization` only delivers the consent UI locally. Treat your
   backend's login transaction status as the source of truth for login success.
 - `AgentOSSDK` exposes module properties (`agentos`, `agentkit`, `authkit`,
-  `cronkit`, `discoverykit`, `harnesskit`, `ragkit`, `modelkit`, `toolkit`, `transferkit`)
+  `cronkit`, `discoverykit`, `harnesskit`, `modelkit`, `toolkit`, `transferkit`)
   for clearer separation of API areas.
 - AgentKit endpoints are exposed under `/agentkit/*`.
 - `sdk.modelkit.chat` targets `/modelkit/chat/...`.

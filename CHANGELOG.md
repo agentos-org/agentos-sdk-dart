@@ -1,3 +1,8 @@
+## Unreleased
+
+- breaking: remove RagKit support, including `sdk.ragkit`, `RagKitModule`,
+  `RagKitClient`, and the RagKit request and response types.
+
 ## 0.9.1
 
 - feat: register conversation-scoped private App OpenTool callbacks through
