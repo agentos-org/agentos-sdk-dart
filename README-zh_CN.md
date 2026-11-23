@@ -26,7 +26,7 @@ ToolKit 和 TransferKit 接口。推荐使用统一的 `AgentOSSDK`，无需手�
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.9.1
+  agentos_sdk: ^0.10.0
 ```
 
 然后执行：

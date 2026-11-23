@@ -1,4 +1,4 @@
-## Unreleased
+## 0.10.0
 
 - breaking: remove RagKit support, including `sdk.ragkit`, `RagKitModule`,
   `RagKitClient`, and the RagKit request and response types.

@@ -28,7 +28,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  agentos_sdk: ^0.9.1
+  agentos_sdk: ^0.10.0
 ```
 
 Then run:
